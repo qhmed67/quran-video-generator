@@ -30,12 +30,15 @@ export interface WordLayout {
 export interface RowLayout {
   words: WordLayout[];
   y: number;
+  width: number;
 }
 
 export interface RtlLayoutResult {
   rows: RowLayout[];
   overflow: boolean;
 }
+
+export type HorizontalAlign = 'center' | 'right' | 'left';
 
 const WORD_GAP_RATIO = 0.5;
 
@@ -49,9 +52,11 @@ export function layoutRtlRows(opts: {
   marginX: number;
   startY: number;
   rowGap: number;
+  align: HorizontalAlign;
+  fontFamily: string;
 }): RtlLayoutResult {
-  const { ctx, words, rowWidth, rowHeight, fontSize, maxRows, marginX, startY, rowGap } = opts;
-  ctx.font = `600 ${fontSize}px ${ctx.font.split('px ')[1] ?? 'serif'}`;
+  const { ctx, words, rowWidth, rowHeight, fontSize, maxRows, marginX, startY, rowGap, align, fontFamily } = opts;
+  ctx.font = `400 ${fontSize}px ${fontFamily}`;
   const gap = fontSize * WORD_GAP_RATIO;
   const avail = rowWidth - 2 * marginX;
   const widths = words.map((w) => ctx.measureText(stripAyahOrnaments(w.text)).width);
@@ -78,7 +83,16 @@ export function layoutRtlRows(opts: {
 
   for (let r = 0; r < count; r++) {
     const idxs = buckets[r];
-    let right = rowWidth - marginX;
+    const lineWidth =
+      idxs.reduce((sum, i) => sum + widths[i], 0) + Math.max(0, idxs.length - 1) * gap;
+    let right: number;
+    if (align === 'left') {
+      right = marginX + lineWidth;
+    } else if (align === 'center') {
+      right = (rowWidth + lineWidth) / 2;
+    } else {
+      right = rowWidth - marginX;
+    }
     const y = startY + r * rowHeightTotal + rowHeight;
     const laid: WordLayout[] = idxs.map((i) => {
       right -= widths[i];
@@ -92,7 +106,7 @@ export function layoutRtlRows(opts: {
       right -= gap;
       return layout;
     });
-    rows.push({ words: laid, y });
+    rows.push({ words: laid, y, width: lineWidth });
   }
   return { rows, overflow };
 }
@@ -108,6 +122,8 @@ export function autoFitFontSize(opts: {
   rowGap: number;
   initialFontSize: number;
   minFontSize: number;
+  align: HorizontalAlign;
+  fontFamily: string;
 }): { fontSize: number; layout: RtlLayoutResult } {
   let fontSize = opts.initialFontSize;
   for (;;) {
@@ -117,4 +133,21 @@ export function autoFitFontSize(opts: {
     }
     fontSize = Math.round(fontSize * 0.9);
   }
+}
+
+export function startYForAnchor(opts: {
+  anchor: 'top' | 'center' | 'bottom';
+  rowCount: number;
+  rowHeight: number;
+  rowGap: number;
+  width: number;
+  height: number;
+  marginTop: number;
+  marginBottom: number;
+}): number {
+  const { anchor, rowCount, rowHeight, rowGap, height, marginTop, marginBottom } = opts;
+  const blockHeight = rowCount * rowHeight + (rowCount - 1) * rowGap;
+  if (anchor === 'top') return marginTop;
+  if (anchor === 'bottom') return height - marginBottom - blockHeight;
+  return (height - blockHeight) / 2;
 }

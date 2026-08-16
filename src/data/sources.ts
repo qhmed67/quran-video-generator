@@ -29,30 +29,45 @@ export function mp3quranAudioUrl(folderUrl: string, surah: number): string {
 }
 
 export async function fetchMp3quranReciters(language = 'eng'): Promise<Mp3quranReciter[]> {
-  return proxiedJson<Mp3quranReciter[]>(
+  const data = await proxiedJson<{ reciters: Mp3quranReciter[] }>(
     `https://mp3quran.net/api/v3/reciters?language=${language}`,
   );
+  return data.reciters;
 }
+
+const mp3quranTimingCache = new Map<string, Map<string, { startMs: number; endMs: number }>>();
 
 export async function fetchMp3quranAyahTiming(
   surah: number,
   readId: number,
 ): Promise<Map<string, { startMs: number; endMs: number }> | null> {
-  try {
-    const rows = await proxiedJson<Mp3quranAyahTimingRow[]>(
-      `https://mp3quran.net/api/v3/ayat_timing?surah=${surah}&read=${readId}`,
-    );
-    const map = new Map<string, { startMs: number; endMs: number }>();
-    for (const row of rows) {
-      map.set(`${row.surah}:${row.ayah}`, {
-        startMs: row.start_time,
-        endMs: row.end_time,
-      });
+  const cacheKey = `${surah}:${readId}`;
+  const cached = mp3quranTimingCache.get(cacheKey);
+  if (cached) return cached;
+
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const rows = await proxiedJson<Mp3quranAyahTimingRow[]>(
+        `https://mp3quran.net/api/v3/ayat_timing?surah=${surah}&read=${readId}`,
+      );
+      const map = new Map<string, { startMs: number; endMs: number }>();
+      for (const row of rows) {
+        map.set(`${row.surah}:${row.ayah}`, {
+          startMs: row.start_time,
+          endMs: row.end_time,
+        });
+      }
+      if (map.size > 0) {
+        mp3quranTimingCache.set(cacheKey, map);
+        return map;
+      }
+    } catch {
+      if (attempt === 0) {
+        await new Promise((resolve) => setTimeout(resolve, 250));
+      }
     }
-    return map.size > 0 ? map : null;
-  } catch {
-    return null;
   }
+  return null;
 }
 
 export async function fetchQfUthmani(

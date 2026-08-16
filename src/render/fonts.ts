@@ -1,22 +1,30 @@
 export interface FontSet {
   uthmani: string;
   translation: string;
+  uthmaniLoaded: boolean;
 }
 
 const UTHMANI_FONT =
-  "'KFGQPC HAFS Uthmanic Script', 'me_quran', 'Scheherazade New', serif";
+  "'KFGQPC HAFS Uthmanic Script', 'Scheherazade New', 'me_quran', 'Noto Naskh Arabic', serif";
 const TRANSLATION_FONT = "system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif";
 
 export async function loadFonts(): Promise<FontSet> {
+  let uthmaniLoaded = false;
   if ('fonts' in document) {
     try {
+      const spec = `400 100px ${UTHMANI_FONT}`;
+      await Promise.race([
+        document.fonts.load(spec),
+        new Promise((resolve) => setTimeout(resolve, 3000)),
+      ]);
+      uthmaniLoaded = document.fonts.check(spec);
       await Promise.race([
         document.fonts.ready,
-        new Promise((resolve) => setTimeout(resolve, 2000)),
+        new Promise((resolve) => setTimeout(resolve, 1500)),
       ]);
     } catch {
       void 0;
     }
   }
-  return { uthmani: UTHMANI_FONT, translation: TRANSLATION_FONT };
+  return { uthmani: UTHMANI_FONT, translation: TRANSLATION_FONT, uthmaniLoaded };
 }

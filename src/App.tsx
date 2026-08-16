@@ -11,6 +11,8 @@ import type { GradientPreset } from './render/background';
 import { loadFonts } from './render/fonts';
 import type { FontSet } from './render/fonts';
 import { renderFrame } from './render/renderFrame';
+import type { VerticalAnchor } from './render/renderFrame';
+import type { HorizontalAlign } from './render/layout';
 
 type Aspect = '9:16' | '1:1';
 
@@ -46,25 +48,36 @@ export default function App() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [exportProgress, setExportProgress] = useState(0);
+  const [uthmaniFontReady, setUthmaniFontReady] = useState(true);
+  const [textAnchorY, setTextAnchorY] = useState<VerticalAnchor>('center');
+  const [textAlignX, setTextAlignX] = useState<HorizontalAlign>('center');
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const ctxRef = useRef<CanvasRenderingContext2D | null>(null);
   const rafRef = useRef(0);
   const playerRef = useRef<ClipPlayer | null>(null);
   const timelineRef = useRef<CaptionTimeline | null>(null);
-  const fontsRef = useRef<FontSet>({ uthmani: 'serif', translation: 'sans-serif' });
+  const fontsRef = useRef<FontSet>({ uthmani: 'serif', translation: 'sans-serif', uthmaniLoaded: false });
   const bgImageRef = useRef<HTMLImageElement | null>(null);
   const bgPresetRef = useRef<GradientPreset>(GRADIENT_PRESETS[0]);
   const captionsRef = useRef({ uthmani: true, translation: false });
+  const textAnchorYRef = useRef<VerticalAnchor>('center');
+  const textAlignXRef = useRef<HorizontalAlign>('center');
 
   captionsRef.current = { uthmani: true, translation: translationEnabled };
   bgPresetRef.current = GRADIENT_PRESETS.find((p) => p.id === bgId) ?? GRADIENT_PRESETS[0];
+  textAnchorYRef.current = textAnchorY;
+  textAlignXRef.current = textAlignX;
 
   const size = ASPECTS[aspect];
 
   const build = useCallback(
     async (rid: string, s: number, f: number, t: number, trans: boolean) => {
       if (!rid) return;
+      if (s < 1 || s > 114 || f < 1 || t < 1 || f > t) {
+        setError('Invalid verse range (1 <= from <= to)');
+        return;
+      }
       setIsLoading(true);
       setError(null);
       try {
@@ -111,6 +124,7 @@ export default function App() {
   useEffect(() => {
     loadFonts().then((fonts) => {
       fontsRef.current = fonts;
+      setUthmaniFontReady(fonts.uthmaniLoaded);
     });
   }, []);
 
@@ -131,6 +145,7 @@ export default function App() {
       cancelled = true;
       playerRef.current?.stop();
       playerRef.current = null;
+      setIsPlaying(false);
     };
   }, [timeline]);
 
@@ -150,6 +165,8 @@ export default function App() {
           timeline: tl,
           captionsOn: captionsRef.current,
           fonts: fontsRef.current,
+          textAnchorY: textAnchorYRef.current,
+          textAlignX: textAlignXRef.current,
           drawBackground: (c) => drawBackground(c, bgPresetRef.current, bgImageRef.current),
         });
       } else {
@@ -162,7 +179,18 @@ export default function App() {
   }, []);
 
   const handlePlayPause = useCallback(async () => {
-    const p = playerRef.current;
+    let p = playerRef.current;
+    const tl = timelineRef.current;
+    if (!p && tl) {
+      try {
+        p = await playClip(tl.meta.audioUrl, tl.meta.clipStartOffsetSeconds);
+        p.element.addEventListener('ended', () => setIsPlaying(false));
+        playerRef.current = p;
+      } catch (err) {
+        setError((err as Error).message);
+        return;
+      }
+    }
     if (!p) return;
     if (isPlaying) {
       p.pause();
@@ -222,7 +250,10 @@ export default function App() {
     }
   }, []);
 
-  const durSeconds = timeline ? timeline.verses[timeline.verses.length - 1].endSeconds : 0;
+  const durSeconds =
+  timeline && timeline.verses.length > 0
+    ? timeline.verses[timeline.verses.length - 1].endSeconds
+    : 0;
 
   return (
     <div style={{ display: 'flex', gap: 24, padding: 24, height: '100%' }}>
@@ -263,7 +294,10 @@ export default function App() {
               min={1}
               max={286}
               value={from}
-              onChange={(e) => setFrom(Number(e.target.value))}
+              onChange={(e) => {
+                const v = Math.max(1, Number(e.target.value));
+                setFrom(Math.min(v, to));
+              }}
               style={inputStyle}
             />
           </label>
@@ -274,7 +308,10 @@ export default function App() {
               min={1}
               max={286}
               value={to}
-              onChange={(e) => setTo(Number(e.target.value))}
+              onChange={(e) => {
+                const v = Math.max(1, Number(e.target.value));
+                setTo(Math.max(v, from));
+              }}
               style={inputStyle}
             />
           </label>
@@ -309,6 +346,32 @@ export default function App() {
           />
         </label>
 
+        <label>
+          Text position
+          <select
+            value={textAnchorY}
+            onChange={(e) => setTextAnchorY(e.target.value as VerticalAnchor)}
+            style={inputStyle}
+          >
+            <option value="top">Top</option>
+            <option value="center">Center (default)</option>
+            <option value="bottom">Bottom</option>
+          </select>
+        </label>
+
+        <label>
+          Text alignment
+          <select
+            value={textAlignX}
+            onChange={(e) => setTextAlignX(e.target.value as HorizontalAlign)}
+            style={inputStyle}
+          >
+            <option value="center">Center (default)</option>
+            <option value="right">Right</option>
+            <option value="left">Left</option>
+          </select>
+        </label>
+
         <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <input
             type="checkbox"
@@ -337,6 +400,13 @@ export default function App() {
         </div>
 
         {isLoading && <div style={{ fontSize: 13, opacity: 0.8 }}>Loading timeline…</div>}
+        {!uthmaniFontReady && (
+          <div style={{ fontSize: 12, opacity: 0.75 }}>
+            Note: Uthmani font file not found — add{' '}
+            <code>public/fonts/KFGQPC-Uthmanic-HAFS.otf</code> for the official script
+            (currently falling back to Scheherazade New).
+          </div>
+        )}
         {error && <div style={{ fontSize: 13, color: '#fca5a5' }}>{error}</div>}
         {isExporting && (
           <div style={{ fontSize: 12, opacity: 0.8 }}>

@@ -42,6 +42,24 @@ export async function lookupReciter(reciterId: string): Promise<ReciterCapabilit
   };
 }
 
+interface ClipVerseWindow {
+  verseKey: string;
+  startSeconds: number;
+  endSeconds: number;
+}
+
+function toClipRelative(
+  perVerse: { verseKey: string; startSeconds: number; endSeconds: number }[],
+  clipStartMs: number,
+): ClipVerseWindow[] {
+  const clipStart = msToSeconds(clipStartMs);
+  return perVerse.map((v) => ({
+    verseKey: v.verseKey,
+    startSeconds: Math.max(0, v.startSeconds - clipStart),
+    endSeconds: Math.max(0, v.endSeconds - clipStart),
+  }));
+}
+
 export async function resolveTiming(req: {
   reciterId: string;
   surah: number;
@@ -55,11 +73,15 @@ export async function resolveTiming(req: {
     ? await fetchQfAudioTiming(capability.qfReciterId, range)
     : null;
   if (qf) {
-    const perVerse = qf.perVerse.map((v) => ({
-      verseKey: v.verseKey,
-      startSeconds: msToSeconds(v.startMs),
-      endSeconds: msToSeconds(v.endMs),
-    }));
+    const clipStartMs = qf.perVerse[0]?.startMs ?? 0;
+    const perVerse = toClipRelative(
+      qf.perVerse.map((v) => ({
+        verseKey: v.verseKey,
+        startSeconds: msToSeconds(v.startMs),
+        endSeconds: msToSeconds(v.endMs),
+      })),
+      clipStartMs,
+    );
     if (qf.granularity === 'word') {
       const wordSegments: Record<string, RawWordSegmentSeconds[]> = {};
       for (const v of qf.perVerse) {
@@ -68,8 +90,8 @@ export async function resolveTiming(req: {
         if (segmentsMs.length === 0) continue;
         wordSegments[v.verseKey] = segmentsMs.map(([w0, , s, e]) => ({
           index: w0,
-          startSeconds: msToSeconds(s),
-          endSeconds: msToSeconds(e),
+          startSeconds: Math.max(0, msToSeconds(s - clipStartMs)),
+          endSeconds: Math.max(0, msToSeconds(e - clipStartMs)),
         }));
       }
       return {
@@ -78,7 +100,7 @@ export async function resolveTiming(req: {
         perVerse,
         wordSegments,
         audioUrl: mp3quranAudioUrl(capability.mp3quranFolderUrl ?? '', req.surah),
-        clipStartOffsetSeconds: perVerse[0]?.startSeconds ?? 0,
+        clipStartOffsetSeconds: msToSeconds(clipStartMs),
         warnings,
       };
     }
@@ -93,23 +115,21 @@ export async function resolveTiming(req: {
     ? await fetchMp3quranAyahTiming(req.surah, capability.mp3quranReadId)
     : null;
 
-  const perVerse = mp
+  const entries = mp
     ? Array.from(mp.entries())
         .filter(([key]) => {
           const [, ayah] = key.split(':').map(Number);
           return ayah >= range.from && ayah <= range.to;
         })
-        .sort((a, b) => {
-          const [, ayahA] = a[0].split(':').map(Number);
-          const [, ayahB] = b[0].split(':').map(Number);
-          return ayahA - ayahB;
-        })
-        .map(([key, t]) => ({
-          verseKey: key,
-          startSeconds: msToSeconds(t.startMs),
-          endSeconds: msToSeconds(t.endMs),
-        }))
+        .sort((a, b) => a[1].startMs - b[1].startMs)
     : [];
+
+  const clipStartMs = entries[0]?.[1].startMs ?? 0;
+  const perVerse = entries.map(([key, t]) => ({
+    verseKey: key,
+    startSeconds: Math.max(0, msToSeconds(t.startMs - clipStartMs)),
+    endSeconds: Math.max(0, msToSeconds(t.endMs - clipStartMs)),
+  }));
 
   if (perVerse.length === 0) {
     return {
@@ -146,7 +166,7 @@ export async function resolveTiming(req: {
         perVerse,
         wordSegments,
         audioUrl: mp3quranAudioUrl(capability.mp3quranFolderUrl ?? '', req.surah),
-        clipStartOffsetSeconds: perVerse[0]?.startSeconds ?? 0,
+        clipStartOffsetSeconds: msToSeconds(clipStartMs),
         warnings,
       };
     }
@@ -158,7 +178,7 @@ export async function resolveTiming(req: {
     perVerse,
     wordSegments: null,
     audioUrl: mp3quranAudioUrl(capability.mp3quranFolderUrl ?? '', req.surah),
-    clipStartOffsetSeconds: perVerse[0]?.startSeconds ?? 0,
+    clipStartOffsetSeconds: msToSeconds(clipStartMs),
     warnings,
   };
 }
