@@ -206,14 +206,39 @@ export default function App() {
     return () => cancelAnimationFrame(rafRef.current);
   }, []);
 
-  const toLogical = (e: React.PointerEvent<HTMLCanvasElement>) => {
+  const toLogicalPoint = (clientX: number, clientY: number) => {
     const canvas = canvasRef.current;
     if (!canvas) return { x: 0, y: 0 };
     const r = canvas.getBoundingClientRect();
     return {
-      x: (e.clientX - r.left) * (canvas.width / r.width),
-      y: (e.clientY - r.top) * (canvas.height / r.height),
+      x: (clientX - r.left) * (canvas.width / r.width),
+      y: (clientY - r.top) * (canvas.height / r.height),
     };
+  };
+
+  const applyCursor = (clientX: number, clientY: number) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const d = dragRef.current;
+    let cursor = 'default';
+    if (d) {
+      cursor =
+        d.type === 'move'
+          ? 'grabbing'
+          : d.corner === 'tl' || d.corner === 'br'
+            ? 'nwse-resize'
+            : 'nesw-resize';
+    } else if (transformModeRef.current) {
+      const p = toLogicalPoint(clientX, clientY);
+      const b = boundsRef.current;
+      const corner = hitBoxHandle(b, p);
+      if (corner) {
+        cursor = corner === 'tl' || corner === 'br' ? 'nwse-resize' : 'nesw-resize';
+      } else if (p.x >= b.x && p.x <= b.x + b.width && p.y >= b.y && p.y <= b.y + b.height) {
+        cursor = 'move';
+      }
+    }
+    canvas.style.cursor = cursor;
   };
 
   const hitBoxHandle = (b: TextBounds, p: { x: number; y: number }): string | null => {
@@ -234,7 +259,7 @@ export default function App() {
     if (!transformModeRef.current) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const p = toLogical(e);
+    const p = toLogicalPoint(e.clientX, e.clientY);
     const b = boundsRef.current;
     const corner = hitBoxHandle(b, p);
     if (corner) {
@@ -244,13 +269,14 @@ export default function App() {
     } else {
       return;
     }
+    applyCursor(e.clientX, e.clientY);
     canvas.setPointerCapture(e.pointerId);
   };
 
   const handlePointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
     const d = dragRef.current;
     if (!d) return;
-    const p = toLogical(e);
+    const p = toLogicalPoint(e.clientX, e.clientY);
     const W = size.width;
     const H = size.height;
     const dx = p.x - d.startX;
@@ -260,8 +286,15 @@ export default function App() {
     let nw = d.orig.width;
     let nh = d.orig.height;
     if (d.type === 'move') {
-      nx = d.orig.x + dx;
-      ny = d.orig.y + dy;
+      nx = Math.min(Math.max(d.orig.x + dx, 0), W - nw);
+      ny = Math.min(Math.max(d.orig.y + dy, 0), H - nh);
+      const cx = nx + nw / 2;
+      const cy = ny + nh / 2;
+      const snapX = Math.abs(cx - W / 2) < SNAP_PX;
+      const snapY = Math.abs(cy - H / 2) < SNAP_PX;
+      if (snapX) nx = W / 2 - nw / 2;
+      if (snapY) ny = H / 2 - nh / 2;
+      snapRef.current = { x: snapX, y: snapY };
     } else {
       let left = d.orig.x;
       let top = d.orig.y;
@@ -271,36 +304,31 @@ export default function App() {
       if (d.corner.includes('r')) right = d.orig.x + dx;
       if (d.corner.includes('t')) top = d.orig.y + dy;
       if (d.corner.includes('b')) bottom = d.orig.y + dy;
-      if (right - left < MIN_BOX) {
-        if (d.corner.includes('l')) left = right - MIN_BOX;
-        else right = left + MIN_BOX;
-      }
-      if (bottom - top < MIN_BOX) {
-        if (d.corner.includes('t')) top = bottom - MIN_BOX;
-        else bottom = top + MIN_BOX;
-      }
+      if (d.corner.includes('l')) left = Math.min(Math.max(left, 0), right - MIN_BOX);
+      else right = Math.min(Math.max(right, left + MIN_BOX), W);
+      if (d.corner.includes('t')) top = Math.min(Math.max(top, 0), bottom - MIN_BOX);
+      else bottom = Math.min(Math.max(bottom, top + MIN_BOX), H);
       nx = left;
       ny = top;
       nw = right - left;
       nh = bottom - top;
+      snapRef.current = { x: false, y: false };
     }
-    nx = Math.min(Math.max(nx, 0), W - nw);
-    ny = Math.min(Math.max(ny, 0), H - nh);
-    const cx = nx + nw / 2;
-    const cy = ny + nh / 2;
-    const snapX = Math.abs(cx - W / 2) < SNAP_PX;
-    const snapY = Math.abs(cy - H / 2) < SNAP_PX;
-    if (snapX) nx = W / 2 - nw / 2;
-    if (snapY) ny = H / 2 - nh / 2;
-    nx = Math.min(Math.max(nx, 0), W - nw);
-    ny = Math.min(Math.max(ny, 0), H - nh);
-    snapRef.current = { x: snapX, y: snapY };
     boundsRef.current = { x: nx, y: ny, width: nw, height: nh };
+    applyCursor(e.clientX, e.clientY);
   };
 
-  const handlePointerUp = () => {
+  const handlePointerUp = (e: React.PointerEvent<HTMLCanvasElement>) => {
     dragRef.current = null;
     snapRef.current = { x: false, y: false };
+    applyCursor(e.clientX, e.clientY);
+  };
+
+  const handlePointerLeave = () => {
+    if (!dragRef.current) {
+      const canvas = canvasRef.current;
+      if (canvas) canvas.style.cursor = 'default';
+    }
   };
 
   const handlePlayPause = useCallback(async () => {
@@ -405,6 +433,7 @@ export default function App() {
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerUp}
           onPointerCancel={handlePointerUp}
+          onPointerLeave={handlePointerLeave}
           style={{
             height: '100%',
             maxHeight: 720,
@@ -412,7 +441,6 @@ export default function App() {
             borderRadius: 12,
             boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
             touchAction: 'none',
-            cursor: transformMode ? 'move' : 'default',
           }}
         />
       </main>

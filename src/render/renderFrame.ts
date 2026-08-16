@@ -1,7 +1,7 @@
 import { compareToWindow } from '../lib/time';
 import type { CaptionTimeline, VerseTimelineEntry, WordSegmentSeconds } from '../lib/types/timeline';
 import type { FontSet } from './fonts';
-import { autoFitFontSize, ornateAyahMarker, stripAyahOrnaments, withAyahMarker } from './layout';
+import { autoFitFontSize, ornateAyahMarker, stripAyahOrnaments } from './layout';
 import type { HorizontalAlign } from './layout';
 
 export type HighlightMode = 'word' | 'verse';
@@ -109,15 +109,12 @@ function drawUthmaniVerse(
   },
 ): UthmaniBlock {
   const { height, fonts, bounds, align, scrimEnabled, wordHighlightEnabled } = opts;
+  const canvasW = ctx.canvas.width;
+  const canvasH = ctx.canvas.height;
   const boxX = bounds.x;
   const boxY = bounds.y;
   const boxW = bounds.width;
   const boxH = bounds.height;
-  const marginX = Math.round(boxW * 0.02);
-  const rowHeight = Math.round(boxH * 0.16);
-  const rowGap = Math.round(boxH * 0.02);
-  const maxRows = 2;
-  const initialFont = Math.round(boxH * 0.17);
   const minFont = Math.round(boxH * 0.07);
   const highlight = wordHighlightEnabled ? activeWord(verse, opts.t) : null;
 
@@ -128,36 +125,53 @@ function drawUthmaniVerse(
           .filter((w) => w.text.length > 0),
         { index: -1, text: ornateAyahMarker(verse.ayahNumber) },
       ]
-    : [{ index: 0, text: withAyahMarker(stripAyahOrnaments(verse.uthmani), verse.ayahNumber) }];
+    : (() => {
+        const raw = stripAyahOrnaments(verse.uthmani).trim();
+        const parts = raw.length ? raw.split(/\s+/) : [];
+        return [
+          ...parts.map((text, i) => ({ index: i, text })),
+          { index: -1, text: ornateAyahMarker(verse.ayahNumber) },
+        ];
+      })();
 
-  const fitted = autoFitFontSize({
-    ctx,
-    words: displayWords,
-    rowWidth: boxW,
-    rowHeight,
-    maxRows,
-    marginX,
-    startY: 0,
-    rowGap,
-    initialFontSize: initialFont,
-    minFontSize: minFont,
-    align,
-    fontFamily: fonts.uthmani,
-  });
-
-  const rowCount = fitted.layout.rows.length;
-  const blockHeight = rowCount * rowHeight + (rowCount - 1) * rowGap;
-  const blockTopRel = (boxH - blockHeight) / 2;
-
-  const block: UthmaniBlock = {
-    top: boxY + blockTopRel,
-    bottom: boxY + blockTopRel + blockHeight,
+  const geometryFor = (w: number, h: number, minFontSize: number) => {
+    const rowHeight = Math.round(h * 0.16);
+    const rowGap = Math.round(h * 0.02);
+    const maxRows = Math.max(1, Math.floor((h - rowGap) / (rowHeight + rowGap)));
+    const fitted = autoFitFontSize({
+      ctx,
+      words: displayWords,
+      rowWidth: w,
+      rowHeight,
+      maxRows,
+      marginX: Math.round(w * 0.02),
+      startY: 0,
+      rowGap,
+      initialFontSize: Math.round(h * 0.17),
+      minFontSize,
+      align,
+      fontFamily: fonts.uthmani,
+    });
+    return { rowHeight, rowGap, fitted };
   };
 
+  let box = { w: boxW, h: boxH };
+  let origin = { x: boxX, y: boxY };
+  let g = geometryFor(box.w, box.h, minFont);
+  if (!g.fitted.fits) {
+    box = { w: canvasW, h: canvasH };
+    origin = { x: 0, y: 0 };
+    g = geometryFor(box.w, box.h, Math.max(8, minFont));
+  }
+
+  const rowCount = g.fitted.layout.rows.length;
+  const blockHeight = rowCount * g.rowHeight + (rowCount - 1) * g.rowGap;
+  const blockTopRel = (box.h - blockHeight) / 2;
+
   ctx.save();
-  ctx.translate(boxX, 0);
+  ctx.translate(origin.x, origin.y);
   if (scrimEnabled && rowCount > 0) {
-    drawScrim(ctx, { top: blockTopRel, bottom: blockTopRel + blockHeight }, boxW, boxH);
+    drawScrim(ctx, { top: blockTopRel, bottom: blockTopRel + blockHeight }, box.w, box.h);
   }
   ctx.fillStyle = '#ffffff';
   ctx.shadowColor = 'rgba(0, 0, 0, 0.75)';
@@ -166,48 +180,43 @@ function drawUthmaniVerse(
   ctx.textAlign = 'right';
   ctx.textBaseline = 'alphabetic';
   ctx.direction = 'rtl';
-  ctx.font = `400 ${fitted.fontSize}px ${fonts.uthmani}`;
+  ctx.font = `400 ${g.fitted.fontSize}px ${fonts.uthmani}`;
 
-  if (verse.words) {
-    for (const row of fitted.layout.rows) {
-      for (const wl of row.words) {
-        if (wl.index === -1) {
+  for (const row of g.fitted.layout.rows) {
+    for (const wl of row.words) {
+      if (wl.index === -1) {
+        ctx.globalAlpha = opts.opacity;
+        ctx.fillStyle = MARKER_COLOR;
+      } else if (verse.words && wordHighlightEnabled) {
+        if (highlight && wl.index === highlight.index) {
           ctx.globalAlpha = opts.opacity;
-          ctx.fillStyle = MARKER_COLOR;
-        } else if (wordHighlightEnabled) {
-          if (highlight && wl.index === highlight.index) {
-            ctx.globalAlpha = opts.opacity;
-            const rect = {
-              x: wl.x - wl.width - height * 0.004,
-              y: blockTopRel + row.y - fitted.fontSize * 0.95,
-              width: wl.width + height * 0.008,
-              height: fitted.fontSize * 1.15,
-            };
-            ctx.fillStyle = 'rgba(255, 215, 0, 0.35)';
-            ctx.fillRect(rect.x, rect.y, rect.width, rect.height);
-            ctx.fillStyle = '#ffffff';
-          } else {
-            ctx.globalAlpha = opts.opacity * INACTIVE_WORD_ALPHA;
-            ctx.fillStyle = '#ffffff';
-          }
+          const rect = {
+            x: wl.x - wl.width - height * 0.004,
+            y: blockTopRel + row.y - g.fitted.fontSize * 0.95,
+            width: wl.width + height * 0.008,
+            height: g.fitted.fontSize * 1.15,
+          };
+          ctx.fillStyle = 'rgba(255, 215, 0, 0.35)';
+          ctx.fillRect(rect.x, rect.y, rect.width, rect.height);
+          ctx.fillStyle = '#ffffff';
         } else {
-          ctx.globalAlpha = opts.opacity;
+          ctx.globalAlpha = opts.opacity * INACTIVE_WORD_ALPHA;
           ctx.fillStyle = '#ffffff';
         }
-        ctx.fillText(wl.text, wl.x, blockTopRel + row.y);
+      } else {
         ctx.globalAlpha = opts.opacity;
+        ctx.fillStyle = '#ffffff';
       }
-    }
-  } else {
-    ctx.globalAlpha = opts.opacity;
-    for (const row of fitted.layout.rows) {
-      for (const wl of row.words) {
-        ctx.fillText(wl.text, wl.x, blockTopRel + row.y);
-      }
+      ctx.fillText(wl.text, wl.x, blockTopRel + row.y);
+      ctx.globalAlpha = opts.opacity;
     }
   }
   ctx.restore();
-  return block;
+
+  return {
+    top: origin.y + blockTopRel,
+    bottom: origin.y + blockTopRel + blockHeight,
+  };
 }
 
 function drawTranslation(

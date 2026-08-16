@@ -14,10 +14,6 @@ export function ornateAyahMarker(ayahNumber: number): string {
   return `\uFD3F${toArabicIndicDigits(ayahNumber)}\uFD3E`;
 }
 
-export function withAyahMarker(text: string, ayahNumber: number): string {
-  return `${text}\u2002${ornateAyahMarker(ayahNumber)}`;
-}
-
 export interface WordDef {
   index: number;
   text: string;
@@ -40,6 +36,7 @@ export interface RowLayout {
 export interface RtlLayoutResult {
   rows: RowLayout[];
   overflow: boolean;
+  neededRows: number;
 }
 
 export type HorizontalAlign = 'center' | 'right' | 'left';
@@ -112,7 +109,7 @@ export function layoutRtlRows(opts: {
     });
     rows.push({ words: laid, y, width: lineWidth });
   }
-  return { rows, overflow };
+  return { rows, overflow, neededRows: buckets.length };
 }
 
 export function autoFitFontSize(opts: {
@@ -128,13 +125,12 @@ export function autoFitFontSize(opts: {
   minFontSize: number;
   align: HorizontalAlign;
   fontFamily: string;
-}): { fontSize: number; layout: RtlLayoutResult } {
+}): { fontSize: number; layout: RtlLayoutResult; fits: boolean } {
   let fontSize = opts.initialFontSize;
   for (;;) {
     const result = layoutRtlRows({ ...opts, fontSize });
-    if (!result.overflow || fontSize <= opts.minFontSize) {
-      return { fontSize, layout: result };
-    }
+    if (!result.overflow) return { fontSize, layout: result, fits: true };
+    if (fontSize <= opts.minFontSize) return { fontSize, layout: result, fits: false };
     fontSize = Math.round(fontSize * 0.9);
   }
 }
