@@ -43,16 +43,19 @@ export default async function handler(req: Request): Promise<Response> {
       void 0;
     }
   }
+  const range = req.headers.get('range');
+  if (range) headers.Range = range;
 
   const upstream = await fetch(target.toString(), { headers });
-  const body = await upstream.arrayBuffer();
-  return new Response(body, {
-    status: upstream.status,
-    headers: {
-      'Access-Control-Allow-Origin': '*',
-      'Cross-Origin-Resource-Policy': 'cross-origin',
-      'Content-Type': upstream.headers.get('content-type') ?? 'application/octet-stream',
-      'Cache-Control': upstream.headers.get('cache-control') ?? 'public, max-age=300',
-    },
-  });
+
+  const respHeaders: Record<string, string> = {
+    'Access-Control-Allow-Origin': '*',
+    'Cross-Origin-Resource-Policy': 'cross-origin',
+    'Content-Type': upstream.headers.get('content-type') ?? 'application/octet-stream',
+  };
+  for (const h of ['content-range', 'accept-ranges', 'content-length', 'cache-control']) {
+    const v = upstream.headers.get(h);
+    if (v) respHeaders[h === 'content-range' ? 'Content-Range' : h === 'accept-ranges' ? 'Accept-Ranges' : h === 'content-length' ? 'Content-Length' : 'Cache-Control'] = v;
+  }
+  return new Response(upstream.body, { status: upstream.status, headers: respHeaders });
 }

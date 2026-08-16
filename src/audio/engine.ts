@@ -8,6 +8,41 @@ export interface ClipPlayer {
   timeSeconds: () => number;
 }
 
+function waitForSeekable(
+  element: HTMLAudioElement,
+  targetSeconds: number,
+  timeoutMs = 8000,
+): Promise<void> {
+  return new Promise<void>((resolve) => {
+    const canSeek = () =>
+      element.seekable.length > 0 &&
+      element.seekable.start(0) <= targetSeconds &&
+      element.seekable.end(element.seekable.length - 1) >= targetSeconds;
+
+    if (canSeek()) {
+      element.currentTime = targetSeconds;
+      resolve();
+      return;
+    }
+    const onProgress = () => {
+      if (canSeek()) {
+        element.removeEventListener('progress', onProgress);
+        element.removeEventListener('canplay', onProgress);
+        element.currentTime = targetSeconds;
+        resolve();
+      }
+    };
+    element.addEventListener('progress', onProgress);
+    element.addEventListener('canplay', onProgress);
+    setTimeout(() => {
+      element.removeEventListener('progress', onProgress);
+      element.removeEventListener('canplay', onProgress);
+      element.currentTime = targetSeconds;
+      resolve();
+    }, timeoutMs);
+  });
+}
+
 export async function playClip(
   audioUrl: string,
   clipStartOffsetSeconds: number,
@@ -29,7 +64,10 @@ export async function playClip(
     element.addEventListener('loadedmetadata', onLoaded);
     element.addEventListener('error', onError);
   });
-  element.currentTime = clampSeconds(clipStartOffsetSeconds);
+  const target = clampSeconds(clipStartOffsetSeconds);
+  if (target > 0) {
+    await waitForSeekable(element, target);
+  }
   return {
     element,
     play: () => element.play(),
@@ -39,7 +77,7 @@ export async function playClip(
       element.removeAttribute('src');
       element.load();
     },
-    timeSeconds: () => Math.max(0, element.currentTime - clipStartOffsetSeconds),
+    timeSeconds: () => Math.max(0, element.currentTime - target),
   };
 }
 
