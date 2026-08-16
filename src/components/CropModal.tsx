@@ -125,22 +125,28 @@ export default function CropModal({ image, defaultAspect, onConfirm, onCancel }:
       return;
     }
     const want = aspectValue(aspect);
+    const k = 1 / want;
     const anchorX = d.corner.includes('l') ? d.orig.x + d.orig.w : d.orig.x;
     const anchorY = d.corner.includes('t') ? d.orig.y + d.orig.h : d.orig.y;
-    let w = Math.abs(p.x - anchorX);
-    let h = Math.abs(p.y - anchorY);
-    const maxW = d.corner.includes('l') ? anchorX : iw - anchorX;
-    const maxH = d.corner.includes('t') ? anchorY : ih - anchorY;
+    const dirX = d.corner.includes('l') ? -1 : 1;
+    const dirY = d.corner.includes('t') ? -1 : 1;
+    const maxW = dirX === -1 ? anchorX : iw - anchorX;
+    const maxH = dirY === -1 ? anchorY : ih - anchorY;
+    const vx = p.x - anchorX;
+    const vy = p.y - anchorY;
+    const t = Math.max(0, (vx * dirX + vy * dirY * k) / (1 + k * k));
+    let w = Math.min(t, maxW);
+    let h = w * k;
+    if (h > maxH) {
+      h = maxH;
+      w = h / k;
+    }
     w = Math.min(w, maxW);
-    h = Math.min(h, maxH);
-    if (w > h * want) w = h * want;
-    else h = w / want;
-    w = Math.min(w, maxW);
-    h = Math.min(h, maxH);
+    h = w * k;
     w = Math.max(w, 20);
-    h = Math.max(h, 20);
-    const x = d.corner.includes('l') ? anchorX - w : anchorX;
-    const y = d.corner.includes('t') ? anchorY - h : anchorY;
+    h = w * k;
+    const x = dirX === -1 ? anchorX - w : anchorX;
+    const y = dirY === -1 ? anchorY - h : anchorY;
     setCrop({ x, y, w, h });
   };
 

@@ -6,8 +6,6 @@ import type { HorizontalAlign } from './layout';
 
 export type HighlightMode = 'word' | 'verse';
 
-export type VerticalAnchor = 'top' | 'center' | 'bottom';
-
 export interface TextBounds {
   x: number;
   y: number;
@@ -79,15 +77,15 @@ interface UthmaniBlock {
 function drawScrim(
   ctx: CanvasRenderingContext2D,
   block: UthmaniBlock,
-  width: number,
-  height: number,
+  boxW: number,
+  boxH: number,
 ): void {
-  const pad = Math.round(height * 0.012);
-  const x = Math.round(width * 0.02) - pad;
+  const pad = Math.round(boxH * 0.012);
+  const x = Math.round(boxW * 0.02) - pad;
   const y = block.top - pad;
-  const w = width - 2 * Math.round(width * 0.02) + 2 * pad;
+  const w = boxW - 2 * Math.round(boxW * 0.02) + 2 * pad;
   const h = block.bottom - block.top + 2 * pad;
-  const r = Math.round(height * 0.012);
+  const r = Math.round(boxH * 0.012);
   ctx.save();
   ctx.fillStyle = 'rgba(0, 0, 0, 0.38)';
   ctx.beginPath();
@@ -102,7 +100,6 @@ function drawUthmaniVerse(
   opts: {
     t: number;
     fonts: FontSet;
-    width: number;
     height: number;
     bounds: TextBounds;
     opacity: number;
@@ -111,7 +108,9 @@ function drawUthmaniVerse(
     wordHighlightEnabled: boolean;
   },
 ): UthmaniBlock {
-  const { width, height, fonts, bounds, align, scrimEnabled, wordHighlightEnabled } = opts;
+  const { height, fonts, bounds, align, scrimEnabled, wordHighlightEnabled } = opts;
+  const boxX = bounds.x;
+  const boxY = bounds.y;
   const boxW = bounds.width;
   const boxH = bounds.height;
   const marginX = Math.round(boxW * 0.02);
@@ -148,25 +147,25 @@ function drawUthmaniVerse(
 
   const rowCount = fitted.layout.rows.length;
   const blockHeight = rowCount * rowHeight + (rowCount - 1) * rowGap;
-  const blockTop = bounds.y + (boxH - blockHeight) / 2;
-  const startY = blockTop;
+  const blockTopRel = (boxH - blockHeight) / 2;
 
   const block: UthmaniBlock = {
-    top: blockTop,
-    bottom: blockTop + blockHeight,
+    top: boxY + blockTopRel,
+    bottom: boxY + blockTopRel + blockHeight,
   };
 
-  if (scrimEnabled && rowCount > 0) {
-    drawScrim(ctx, block, width, height);
-  }
-
   ctx.save();
+  ctx.translate(boxX, 0);
+  if (scrimEnabled && rowCount > 0) {
+    drawScrim(ctx, { top: blockTopRel, bottom: blockTopRel + blockHeight }, boxW, boxH);
+  }
   ctx.fillStyle = '#ffffff';
   ctx.shadowColor = 'rgba(0, 0, 0, 0.75)';
   ctx.shadowBlur = Math.round(height * 0.008);
   ctx.shadowOffsetY = Math.round(height * 0.002);
   ctx.textAlign = 'right';
   ctx.textBaseline = 'alphabetic';
+  ctx.direction = 'rtl';
   ctx.font = `400 ${fitted.fontSize}px ${fonts.uthmani}`;
 
   if (verse.words) {
@@ -180,7 +179,7 @@ function drawUthmaniVerse(
             ctx.globalAlpha = opts.opacity;
             const rect = {
               x: wl.x - wl.width - height * 0.004,
-              y: startY + row.y - fitted.fontSize * 0.95,
+              y: blockTopRel + row.y - fitted.fontSize * 0.95,
               width: wl.width + height * 0.008,
               height: fitted.fontSize * 1.15,
             };
@@ -195,7 +194,7 @@ function drawUthmaniVerse(
           ctx.globalAlpha = opts.opacity;
           ctx.fillStyle = '#ffffff';
         }
-        ctx.fillText(wl.text, wl.x, startY + row.y);
+        ctx.fillText(wl.text, wl.x, blockTopRel + row.y);
         ctx.globalAlpha = opts.opacity;
       }
     }
@@ -203,7 +202,7 @@ function drawUthmaniVerse(
     ctx.globalAlpha = opts.opacity;
     for (const row of fitted.layout.rows) {
       for (const wl of row.words) {
-        ctx.fillText(wl.text, wl.x, startY + row.y);
+        ctx.fillText(wl.text, wl.x, blockTopRel + row.y);
       }
     }
   }
@@ -238,6 +237,7 @@ function drawTranslation(
   ctx.font = `400 ${fontSize}px ${fonts.translation}`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'alphabetic';
+  ctx.direction = 'ltr';
   ctx.fillText(verse.translation, width / 2, Math.min(y, height - Math.round(height * 0.02)));
   ctx.restore();
 }
@@ -273,19 +273,25 @@ export function drawTransformOverlay(
   ctx.lineWidth = 2;
   ctx.strokeRect(bounds.x, bounds.y, bounds.width, bounds.height);
 
-  const hs = Math.max(8, Math.round(W * 0.006));
-  ctx.fillStyle = '#ffffff';
-  ctx.strokeStyle = 'rgba(59, 130, 246, 1)';
-  ctx.lineWidth = 1.5;
+  const hr = Math.max(13, Math.round(W * 0.012));
   const corners: [number, number][] = [
     [bounds.x, bounds.y],
     [bounds.x + bounds.width, bounds.y],
     [bounds.x, bounds.y + bounds.height],
     [bounds.x + bounds.width, bounds.y + bounds.height],
   ];
+  ctx.lineWidth = 2;
   for (const [cx, cy] of corners) {
-    ctx.fillRect(cx - hs / 2, cy - hs / 2, hs, hs);
-    ctx.strokeRect(cx - hs / 2, cy - hs / 2, hs, hs);
+    ctx.beginPath();
+    ctx.arc(cx, cy, hr, 0, Math.PI * 2);
+    ctx.fillStyle = '#ffffff';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(59, 130, 246, 1)';
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(cx, cy, Math.max(2.5, Math.round(hr * 0.32)), 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(59, 130, 246, 1)';
+    ctx.fill();
   }
   ctx.restore();
 }
@@ -322,7 +328,6 @@ export function renderFrame(ctx: CanvasRenderingContext2D, opts: FrameRenderOpti
     block = drawUthmaniVerse(ctx, active, {
       t: tSeconds,
       fonts: opts.fonts,
-      width,
       height,
       bounds,
       opacity,

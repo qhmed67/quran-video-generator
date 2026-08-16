@@ -138,20 +138,3 @@ export function autoFitFontSize(opts: {
     fontSize = Math.round(fontSize * 0.9);
   }
 }
-
-export function startYForAnchor(opts: {
-  anchor: 'top' | 'center' | 'bottom';
-  rowCount: number;
-  rowHeight: number;
-  rowGap: number;
-  width: number;
-  height: number;
-  marginTop: number;
-  marginBottom: number;
-}): number {
-  const { anchor, rowCount, rowHeight, rowGap, height, marginTop, marginBottom } = opts;
-  const blockHeight = rowCount * rowHeight + (rowCount - 1) * rowGap;
-  if (anchor === 'top') return marginTop;
-  if (anchor === 'bottom') return height - marginBottom - blockHeight;
-  return (height - blockHeight) / 2;
-}

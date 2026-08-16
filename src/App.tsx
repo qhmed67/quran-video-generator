@@ -11,8 +11,7 @@ import type { BgImage, GradientPreset } from './render/background';
 import { loadFonts } from './render/fonts';
 import type { FontSet } from './render/fonts';
 import { defaultBounds, drawTransformOverlay, renderFrame } from './render/renderFrame';
-import type { SnapState, TextBounds, VerticalAnchor } from './render/renderFrame';
-import type { HorizontalAlign } from './render/layout';
+import type { SnapState, TextBounds } from './render/renderFrame';
 import CropModal from './components/CropModal';
 import type { CropAspect } from './components/CropModal';
 
@@ -53,8 +52,6 @@ export default function App() {
   const [isExporting, setIsExporting] = useState(false);
   const [exportProgress, setExportProgress] = useState(0);
   const [uthmaniFontReady, setUthmaniFontReady] = useState(true);
-  const [textAnchorY, setTextAnchorY] = useState<VerticalAnchor>('center');
-  const [textAlignX, setTextAlignX] = useState<HorizontalAlign>('center');
   const [scrimEnabled, setScrimEnabled] = useState(false);
   const [wordHighlightEnabled, setWordHighlightEnabled] = useState(false);
   const [transformMode, setTransformMode] = useState(false);
@@ -69,7 +66,6 @@ export default function App() {
   const bgImageRef = useRef<BgImage>(null);
   const bgPresetRef = useRef<GradientPreset>(GRADIENT_PRESETS[0]);
   const captionsRef = useRef({ uthmani: true, translation: false });
-  const textAlignXRef = useRef<HorizontalAlign>('center');
   const boundsRef = useRef<TextBounds>(defaultBounds(1080, 1920));
   const snapRef = useRef<SnapState>({ x: false, y: false });
   const dragRef = useRef<{
@@ -86,7 +82,6 @@ export default function App() {
 
   captionsRef.current = { uthmani: true, translation: translationEnabled };
   bgPresetRef.current = GRADIENT_PRESETS.find((p) => p.id === bgId) ?? GRADIENT_PRESETS[0];
-  textAlignXRef.current = textAlignX;
   scrimRef.current = scrimEnabled;
   wordHighlightRef.current = wordHighlightEnabled;
   transformModeRef.current = transformMode;
@@ -95,17 +90,8 @@ export default function App() {
   const size = ASPECTS[aspect];
 
   useEffect(() => {
-    const W = size.width;
-    const H = size.height;
-    const bw = Math.round(W * 0.9);
-    const bh = Math.round(H * 0.3);
-    const bx = Math.round((W - bw) / 2);
-    let by: number;
-    if (textAnchorY === 'top') by = Math.round(H * 0.08);
-    else if (textAnchorY === 'bottom') by = Math.round(H * 0.62);
-    else by = Math.round(H * 0.35);
-    boundsRef.current = { x: bx, y: by, width: bw, height: bh };
-  }, [size.width, size.height, textAnchorY]);
+    boundsRef.current = defaultBounds(size.width, size.height);
+  }, [size.width, size.height]);
 
   const build = useCallback(
     async (rid: string, s: number, f: number, t: number, trans: boolean) => {
@@ -203,7 +189,6 @@ export default function App() {
           timeline: tl,
           captionsOn: captionsRef.current,
           fonts: fontsRef.current,
-          textAlignX: textAlignXRef.current,
           bounds: boundsRef.current,
           scrimEnabled: scrimRef.current,
           wordHighlightEnabled: wordHighlightRef.current,
@@ -232,7 +217,7 @@ export default function App() {
   };
 
   const hitBoxHandle = (b: TextBounds, p: { x: number; y: number }): string | null => {
-    const h = Math.max(12, Math.round(size.width * 0.02));
+    const h = Math.max(18, Math.round(size.width * 0.022));
     const corners: { id: string; x: number; y: number }[] = [
       { id: 'tl', x: b.x, y: b.y },
       { id: 'tr', x: b.x + b.width, y: b.y },
@@ -520,32 +505,6 @@ export default function App() {
             onChange={(e) => handleBgImage(e.target.files?.[0] ?? null)}
             style={inputStyle}
           />
-        </label>
-
-        <label>
-          Text position
-          <select
-            value={textAnchorY}
-            onChange={(e) => setTextAnchorY(e.target.value as VerticalAnchor)}
-            style={inputStyle}
-          >
-            <option value="top">Top</option>
-            <option value="center">Center</option>
-            <option value="bottom">Bottom</option>
-          </select>
-        </label>
-
-        <label>
-          Text alignment
-          <select
-            value={textAlignX}
-            onChange={(e) => setTextAlignX(e.target.value as HorizontalAlign)}
-            style={inputStyle}
-          >
-            <option value="center">Center</option>
-            <option value="right">Right</option>
-            <option value="left">Left</option>
-          </select>
         </label>
 
         <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
