@@ -1,8 +1,8 @@
 import { compareToWindow } from '../lib/time';
 import type { CaptionTimeline, VerseTimelineEntry, WordSegmentSeconds } from '../lib/types/timeline';
 import type { FontSet } from './fonts';
-import { autoFitFontSize, ornateAyahMarker, stripAyahOrnaments } from './layout';
-import type { HorizontalAlign } from './layout';
+import { layoutTextBlock, ornateAyahMarker, stripAyahOrnaments } from './layout';
+import type { HorizontalAlign, RowLayout, WordDef } from './layout';
 
 export type HighlightMode = 'word' | 'verse';
 
@@ -94,31 +94,25 @@ function drawScrim(
   ctx.restore();
 }
 
-function drawUthmaniVerse(
+export interface UthmaniTextMeasure {
+  width: number;
+  height: number;
+  fits: boolean;
+  fontSize: number;
+}
+
+interface UthmaniLayout extends UthmaniTextMeasure {
+  rows: RowLayout[];
+  blockTopRel: number;
+}
+
+function buildUthmaniLayout(
   ctx: CanvasRenderingContext2D,
   verse: VerseTimelineEntry,
-  opts: {
-    t: number;
-    fonts: FontSet;
-    height: number;
-    bounds: TextBounds;
-    opacity: number;
-    align: HorizontalAlign;
-    scrimEnabled: boolean;
-    wordHighlightEnabled: boolean;
-  },
-): UthmaniBlock {
-  const { height, fonts, bounds, align, scrimEnabled, wordHighlightEnabled } = opts;
-  const canvasW = ctx.canvas.width;
-  const canvasH = ctx.canvas.height;
-  const boxX = bounds.x;
-  const boxY = bounds.y;
-  const boxW = bounds.width;
-  const boxH = bounds.height;
-  const minFont = Math.round(boxH * 0.07);
-  const highlight = wordHighlightEnabled ? activeWord(verse, opts.t) : null;
-
-  const displayWords = verse.words
+  opts: { fonts: FontSet; boxW: number; boxH: number; align: HorizontalAlign },
+): UthmaniLayout {
+  const { fonts, boxW, boxH, align } = opts;
+  const displayWords: WordDef[] = verse.words
     ? [
         ...verse.words
           .map((w) => ({ index: w.index, text: stripAyahOrnaments(w.text).trim() }))
@@ -134,44 +128,84 @@ function drawUthmaniVerse(
         ];
       })();
 
-  const geometryFor = (w: number, h: number, minFontSize: number) => {
-    const rowHeight = Math.round(h * 0.16);
-    const rowGap = Math.round(h * 0.02);
-    const maxRows = Math.max(1, Math.floor((h - rowGap) / (rowHeight + rowGap)));
-    const fitted = autoFitFontSize({
-      ctx,
-      words: displayWords,
-      rowWidth: w,
-      rowHeight,
-      maxRows,
-      marginX: Math.round(w * 0.02),
-      startY: 0,
-      rowGap,
-      initialFontSize: Math.round(h * 0.17),
-      minFontSize,
-      align,
-      fontFamily: fonts.uthmani,
-    });
-    return { rowHeight, rowGap, fitted };
+  const rowHeight = Math.round(boxH * 0.16);
+  const rowGap = Math.round(boxH * 0.02);
+  const maxRows = Math.max(1, Math.floor((boxH - rowGap) / (rowHeight + rowGap)));
+  const marginX = Math.round(boxW * 0.02);
+  const initialFont = Math.round(boxH * 0.17);
+  const minFont = Math.max(8, Math.round(boxH * 0.05));
+
+  const fitted = layoutTextBlock({
+    ctx,
+    words: displayWords,
+    rowWidth: boxW,
+    rowHeight,
+    maxRows,
+    marginX,
+    startY: 0,
+    rowGap,
+    initialFontSize: initialFont,
+    minFontSize: minFont,
+    align,
+    fontFamily: fonts.uthmani,
+  });
+
+  const rowCount = fitted.rows.length;
+  const blockHeight = rowCount * rowHeight + Math.max(0, rowCount - 1) * rowGap;
+  const blockTopRel = (boxH - blockHeight) / 2;
+
+  return {
+    rows: fitted.rows,
+    fontSize: fitted.fontSize,
+    fits: fitted.fits,
+    width: fitted.blockWidth,
+    height: blockHeight,
+    blockTopRel,
   };
+}
 
-  let box = { w: boxW, h: boxH };
-  let origin = { x: boxX, y: boxY };
-  let g = geometryFor(box.w, box.h, minFont);
-  if (!g.fitted.fits) {
-    box = { w: canvasW, h: canvasH };
-    origin = { x: 0, y: 0 };
-    g = geometryFor(box.w, box.h, Math.max(8, minFont));
-  }
+export function layoutUthmaniText(
+  ctx: CanvasRenderingContext2D,
+  verse: VerseTimelineEntry,
+  opts: { fonts: FontSet; boxW: number; boxH: number; align: HorizontalAlign },
+): UthmaniTextMeasure {
+  const layout = buildUthmaniLayout(ctx, verse, opts);
+  return { width: layout.width, height: layout.height, fits: layout.fits, fontSize: layout.fontSize };
+}
 
-  const rowCount = g.fitted.layout.rows.length;
-  const blockHeight = rowCount * g.rowHeight + (rowCount - 1) * g.rowGap;
-  const blockTopRel = (box.h - blockHeight) / 2;
+function drawUthmaniVerse(
+  ctx: CanvasRenderingContext2D,
+  verse: VerseTimelineEntry,
+  opts: {
+    t: number;
+    fonts: FontSet;
+    height: number;
+    bounds: TextBounds;
+    opacity: number;
+    align: HorizontalAlign;
+    scrimEnabled: boolean;
+    wordHighlightEnabled: boolean;
+  },
+): UthmaniBlock {
+  const { height, fonts, bounds, align, scrimEnabled, wordHighlightEnabled } = opts;
+  const boxX = bounds.x;
+  const boxY = bounds.y;
+  const boxW = bounds.width;
+  const boxH = bounds.height;
+  const highlight = wordHighlightEnabled ? activeWord(verse, opts.t) : null;
+
+  const layout = buildUthmaniLayout(ctx, verse, { fonts, boxW, boxH, align });
+  const { rows, fontSize, blockTopRel } = layout;
+  const rowCount = rows.length;
+  const blockHeight = layout.height;
 
   ctx.save();
-  ctx.translate(origin.x, origin.y);
+  ctx.translate(boxX, boxY);
+  ctx.beginPath();
+  ctx.rect(0, 0, boxW, boxH);
+  ctx.clip();
   if (scrimEnabled && rowCount > 0) {
-    drawScrim(ctx, { top: blockTopRel, bottom: blockTopRel + blockHeight }, box.w, box.h);
+    drawScrim(ctx, { top: blockTopRel, bottom: blockTopRel + blockHeight }, boxW, boxH);
   }
   ctx.fillStyle = '#ffffff';
   ctx.shadowColor = 'rgba(0, 0, 0, 0.75)';
@@ -180,9 +214,9 @@ function drawUthmaniVerse(
   ctx.textAlign = 'right';
   ctx.textBaseline = 'alphabetic';
   ctx.direction = 'rtl';
-  ctx.font = `400 ${g.fitted.fontSize}px ${fonts.uthmani}`;
+  ctx.font = `400 ${fontSize}px ${fonts.uthmani}`;
 
-  for (const row of g.fitted.layout.rows) {
+  for (const row of rows) {
     for (const wl of row.words) {
       if (wl.index === -1) {
         ctx.globalAlpha = opts.opacity;
@@ -192,9 +226,9 @@ function drawUthmaniVerse(
           ctx.globalAlpha = opts.opacity;
           const rect = {
             x: wl.x - wl.width - height * 0.004,
-            y: blockTopRel + row.y - g.fitted.fontSize * 0.95,
+            y: blockTopRel + row.y - fontSize * 0.95,
             width: wl.width + height * 0.008,
-            height: g.fitted.fontSize * 1.15,
+            height: fontSize * 1.15,
           };
           ctx.fillStyle = 'rgba(255, 215, 0, 0.35)';
           ctx.fillRect(rect.x, rect.y, rect.width, rect.height);
@@ -214,8 +248,8 @@ function drawUthmaniVerse(
   ctx.restore();
 
   return {
-    top: origin.y + blockTopRel,
-    bottom: origin.y + blockTopRel + blockHeight,
+    top: boxY + blockTopRel,
+    bottom: boxY + blockTopRel + blockHeight,
   };
 }
 
@@ -301,6 +335,21 @@ export function drawTransformOverlay(
     ctx.arc(cx, cy, Math.max(2.5, Math.round(hr * 0.32)), 0, Math.PI * 2);
     ctx.fillStyle = 'rgba(59, 130, 246, 1)';
     ctx.fill();
+  }
+
+  const edgeHandles: [number, number][] = [
+    [bounds.x + bounds.width / 2, bounds.y],
+    [bounds.x + bounds.width / 2, bounds.y + bounds.height],
+    [bounds.x, bounds.y + bounds.height / 2],
+    [bounds.x + bounds.width, bounds.y + bounds.height / 2],
+  ];
+  const eh = Math.max(4, Math.round(hr * 0.4));
+  ctx.lineWidth = 2;
+  for (const [ex, ey] of edgeHandles) {
+    ctx.fillStyle = '#ffffff';
+    ctx.strokeStyle = 'rgba(59, 130, 246, 1)';
+    ctx.fillRect(ex - eh, ey - eh, eh * 2, eh * 2);
+    ctx.strokeRect(ex - eh, ey - eh, eh * 2, eh * 2);
   }
   ctx.restore();
 }

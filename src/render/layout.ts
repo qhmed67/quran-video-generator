@@ -112,7 +112,15 @@ export function layoutRtlRows(opts: {
   return { rows, overflow, neededRows: buckets.length };
 }
 
-export function autoFitFontSize(opts: {
+export interface TextBlockLayout {
+  fontSize: number;
+  rows: RowLayout[];
+  blockWidth: number;
+  blockHeight: number;
+  fits: boolean;
+}
+
+export function layoutTextBlock(opts: {
   ctx: CanvasRenderingContext2D;
   words: WordDef[];
   rowWidth: number;
@@ -125,12 +133,22 @@ export function autoFitFontSize(opts: {
   minFontSize: number;
   align: HorizontalAlign;
   fontFamily: string;
-}): { fontSize: number; layout: RtlLayoutResult; fits: boolean } {
+}): TextBlockLayout {
+  const avail = opts.rowWidth - 2 * opts.marginX;
   let fontSize = opts.initialFontSize;
   for (;;) {
-    const result = layoutRtlRows({ ...opts, fontSize });
-    if (!result.overflow) return { fontSize, layout: result, fits: true };
-    if (fontSize <= opts.minFontSize) return { fontSize, layout: result, fits: false };
+    const layout = layoutRtlRows({ ...opts, fontSize });
+    const widest = opts.words.length
+      ? Math.max(...opts.words.map((w) => opts.ctx.measureText(stripAyahOrnaments(w.text)).width))
+      : 0;
+    const fits = !layout.overflow && widest <= avail;
+    if (fits || fontSize <= opts.minFontSize) {
+      const rowCount = fits ? layout.rows.length : layout.neededRows;
+      const blockHeight = rowCount * opts.rowHeight + Math.max(0, rowCount - 1) * opts.rowGap;
+      const visible = layout.rows.reduce((m, r) => Math.max(m, r.width), 0);
+      const blockWidth = Math.max(visible, widest);
+      return { fontSize, rows: layout.rows, blockWidth, blockHeight, fits };
+    }
     fontSize = Math.round(fontSize * 0.9);
   }
 }
