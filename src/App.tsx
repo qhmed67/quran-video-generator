@@ -296,22 +296,16 @@ export default function App() {
       if (snapY) ny = H / 2 - nh / 2;
       snapRef.current = { x: snapX, y: snapY };
     } else {
-      let left = d.orig.x;
-      let top = d.orig.y;
-      let right = d.orig.x + d.orig.width;
-      let bottom = d.orig.y + d.orig.height;
-      if (d.corner.includes('l')) left = d.orig.x + dx;
-      if (d.corner.includes('r')) right = d.orig.x + dx;
-      if (d.corner.includes('t')) top = d.orig.y + dy;
-      if (d.corner.includes('b')) bottom = d.orig.y + dy;
-      if (d.corner.includes('l')) left = Math.min(Math.max(left, 0), right - MIN_BOX);
-      else right = Math.min(Math.max(right, left + MIN_BOX), W);
-      if (d.corner.includes('t')) top = Math.min(Math.max(top, 0), bottom - MIN_BOX);
-      else bottom = Math.min(Math.max(bottom, top + MIN_BOX), H);
-      nx = left;
-      ny = top;
-      nw = right - left;
-      nh = bottom - top;
+      const anchorX = d.corner.includes('l') ? d.orig.x + d.orig.width : d.orig.x;
+      const anchorY = d.corner.includes('t') ? d.orig.y + d.orig.height : d.orig.y;
+      const dirX = d.corner.includes('l') ? -1 : 1;
+      const dirY = d.corner.includes('t') ? -1 : 1;
+      const maxW = dirX === -1 ? anchorX : W - anchorX;
+      const maxH = dirY === -1 ? anchorY : H - anchorY;
+      nw = Math.min(Math.max(dirX * (p.x - anchorX), MIN_BOX), maxW);
+      nh = Math.min(Math.max(dirY * (p.y - anchorY), MIN_BOX), maxH);
+      nx = dirX === -1 ? anchorX - nw : anchorX;
+      ny = dirY === -1 ? anchorY - nh : anchorY;
       snapRef.current = { x: false, y: false };
     }
     boundsRef.current = { x: nx, y: ny, width: nw, height: nh };
@@ -615,6 +609,7 @@ export default function App() {
         <CropModal
           image={cropImage.img}
           defaultAspect={aspect as CropAspect}
+          onAspectChange={(a) => setAspect(a as Aspect)}
           onConfirm={handleCropConfirm}
           onCancel={handleCropCancel}
         />
