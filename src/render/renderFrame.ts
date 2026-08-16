@@ -32,6 +32,9 @@ export interface FrameRenderOptions {
 
 const INACTIVE_WORD_ALPHA = 0.55;
 const MARKER_COLOR = '#ffd76b';
+const GLOW_COLOR = 'rgba(255, 205, 110, 0.95)';
+const GLOW_TEXT_COLOR = '#ffe9a8';
+const WORD_RAMP = 0.22;
 
 export function defaultBounds(width: number, height: number): TextBounds {
   return {
@@ -61,10 +64,20 @@ function verseOpacity(verse: VerseTimelineEntry, t: number, fadeIn: number, fade
   return 1;
 }
 
-function activeWord(verse: VerseTimelineEntry, t: number): WordSegmentSeconds | null {
+interface ActiveWordGlow {
+  word: WordSegmentSeconds;
+  intensity: number;
+}
+
+function activeWordGlow(verse: VerseTimelineEntry, t: number): ActiveWordGlow | null {
   if (!verse.words) return null;
   for (const w of verse.words) {
-    if (compareToWindow(t, w.startSeconds, w.endSeconds) === 0) return w;
+    if (w.endSeconds > w.startSeconds && t >= w.startSeconds && t <= w.endSeconds) {
+      const dur = w.endSeconds - w.startSeconds;
+      const fIn = Math.min(1, (t - w.startSeconds) / (dur * WORD_RAMP));
+      const fOut = Math.min(1, (w.endSeconds - t) / (dur * WORD_RAMP));
+      return { word: w, intensity: Math.max(0, Math.min(fIn, fOut)) };
+    }
   }
   return null;
 }
@@ -109,9 +122,9 @@ interface UthmaniLayout extends UthmaniTextMeasure {
 function buildUthmaniLayout(
   ctx: CanvasRenderingContext2D,
   verse: VerseTimelineEntry,
-  opts: { fonts: FontSet; boxW: number; boxH: number; align: HorizontalAlign },
+  opts: { fonts: FontSet; boxW: number; boxH: number; align: HorizontalAlign; atMinFont?: boolean },
 ): UthmaniLayout {
-  const { fonts, boxW, boxH, align } = opts;
+  const { fonts, boxW, boxH, align, atMinFont } = opts;
   const displayWords: WordDef[] = verse.words
     ? [
         ...verse.words
@@ -144,8 +157,9 @@ function buildUthmaniLayout(
     marginX,
     startY: 0,
     rowGap,
-    initialFontSize: initialFont,
+    initialFontSize: atMinFont ? minFont : initialFont,
     minFontSize: minFont,
+    fixedFont: atMinFont ? true : undefined,
     align,
     fontFamily: fonts.uthmani,
   });
@@ -167,7 +181,7 @@ function buildUthmaniLayout(
 export function layoutUthmaniText(
   ctx: CanvasRenderingContext2D,
   verse: VerseTimelineEntry,
-  opts: { fonts: FontSet; boxW: number; boxH: number; align: HorizontalAlign },
+  opts: { fonts: FontSet; boxW: number; boxH: number; align: HorizontalAlign; atMinFont?: boolean },
 ): UthmaniTextMeasure {
   const layout = buildUthmaniLayout(ctx, verse, opts);
   return { width: layout.width, height: layout.height, fits: layout.fits, fontSize: layout.fontSize };
@@ -192,12 +206,12 @@ function drawUthmaniVerse(
   const boxY = bounds.y;
   const boxW = bounds.width;
   const boxH = bounds.height;
-  const highlight = wordHighlightEnabled ? activeWord(verse, opts.t) : null;
-
   const layout = buildUthmaniLayout(ctx, verse, { fonts, boxW, boxH, align });
   const { rows, fontSize, blockTopRel } = layout;
   const rowCount = rows.length;
   const blockHeight = layout.height;
+  const highlight = wordHighlightEnabled ? activeWordGlow(verse, opts.t) : null;
+  const baseShadowBlur = Math.round(height * 0.008);
 
   ctx.save();
   ctx.translate(boxX, boxY);
@@ -209,7 +223,7 @@ function drawUthmaniVerse(
   }
   ctx.fillStyle = '#ffffff';
   ctx.shadowColor = 'rgba(0, 0, 0, 0.75)';
-  ctx.shadowBlur = Math.round(height * 0.008);
+  ctx.shadowBlur = baseShadowBlur;
   ctx.shadowOffsetY = Math.round(height * 0.002);
   ctx.textAlign = 'right';
   ctx.textBaseline = 'alphabetic';
@@ -220,25 +234,31 @@ function drawUthmaniVerse(
     for (const wl of row.words) {
       if (wl.index === -1) {
         ctx.globalAlpha = opts.opacity;
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.75)';
+        ctx.shadowBlur = baseShadowBlur;
         ctx.fillStyle = MARKER_COLOR;
       } else if (verse.words && wordHighlightEnabled) {
-        if (highlight && wl.index === highlight.index) {
+        const glow = highlight && wl.index === highlight.word.index ? highlight : null;
+        if (glow) {
           ctx.globalAlpha = opts.opacity;
-          const rect = {
-            x: wl.x - wl.width - height * 0.004,
-            y: blockTopRel + row.y - fontSize * 0.95,
-            width: wl.width + height * 0.008,
-            height: fontSize * 1.15,
-          };
-          ctx.fillStyle = 'rgba(255, 215, 0, 0.35)';
-          ctx.fillRect(rect.x, rect.y, rect.width, rect.height);
+          ctx.shadowColor = GLOW_COLOR;
+          ctx.shadowBlur = Math.round(height * 0.03 * glow.intensity);
+          ctx.fillStyle = GLOW_TEXT_COLOR;
+        } else if (highlight) {
+          ctx.globalAlpha = opts.opacity * INACTIVE_WORD_ALPHA;
+          ctx.shadowColor = 'rgba(0, 0, 0, 0.75)';
+          ctx.shadowBlur = baseShadowBlur;
           ctx.fillStyle = '#ffffff';
         } else {
-          ctx.globalAlpha = opts.opacity * INACTIVE_WORD_ALPHA;
+          ctx.globalAlpha = opts.opacity;
+          ctx.shadowColor = 'rgba(0, 0, 0, 0.75)';
+          ctx.shadowBlur = baseShadowBlur;
           ctx.fillStyle = '#ffffff';
         }
       } else {
         ctx.globalAlpha = opts.opacity;
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.75)';
+        ctx.shadowBlur = baseShadowBlur;
         ctx.fillStyle = '#ffffff';
       }
       ctx.fillText(wl.text, wl.x, blockTopRel + row.y);

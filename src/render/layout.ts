@@ -11,7 +11,7 @@ export function stripAyahOrnaments(text: string): string {
 }
 
 export function ornateAyahMarker(ayahNumber: number): string {
-  return `\uFD3F${toArabicIndicDigits(ayahNumber)}\uFD3E`;
+  return `\u06DD${toArabicIndicDigits(ayahNumber)}`;
 }
 
 export interface WordDef {
@@ -78,11 +78,10 @@ export function layoutRtlRows(opts: {
   if (cur.length > 0) buckets.push(cur);
 
   const overflow = buckets.length > maxRows;
-  const count = Math.min(buckets.length, maxRows);
   const rowHeightTotal = rowHeight + rowGap;
   const rows: RowLayout[] = [];
 
-  for (let r = 0; r < count; r++) {
+  for (let r = 0; r < buckets.length; r++) {
     const idxs = buckets[r];
     const lineWidth =
       idxs.reduce((sum, i) => sum + widths[i], 0) + Math.max(0, idxs.length - 1) * gap;
@@ -133,22 +132,31 @@ export function layoutTextBlock(opts: {
   minFontSize: number;
   align: HorizontalAlign;
   fontFamily: string;
+  fixedFont?: boolean;
 }): TextBlockLayout {
   const avail = opts.rowWidth - 2 * opts.marginX;
-  let fontSize = opts.initialFontSize;
-  for (;;) {
+  const runAt = (fontSize: number): TextBlockLayout => {
     const layout = layoutRtlRows({ ...opts, fontSize });
     const widest = opts.words.length
       ? Math.max(...opts.words.map((w) => opts.ctx.measureText(stripAyahOrnaments(w.text)).width))
       : 0;
     const fits = !layout.overflow && widest <= avail;
-    if (fits || fontSize <= opts.minFontSize) {
-      const rowCount = fits ? layout.rows.length : layout.neededRows;
-      const blockHeight = rowCount * opts.rowHeight + Math.max(0, rowCount - 1) * opts.rowGap;
-      const visible = layout.rows.reduce((m, r) => Math.max(m, r.width), 0);
-      const blockWidth = Math.max(visible, widest);
-      return { fontSize, rows: layout.rows, blockWidth, blockHeight, fits };
+    const rowCount = layout.rows.length;
+    const blockHeight = rowCount * opts.rowHeight + Math.max(0, rowCount - 1) * opts.rowGap;
+    const visible = layout.rows.reduce((m, r) => Math.max(m, r.width), 0);
+    const blockWidth = Math.max(visible, widest);
+    return { fontSize, rows: layout.rows, blockWidth, blockHeight, fits };
+  };
+  if (opts.fixedFont) return runAt(opts.initialFontSize);
+  let fontSize = opts.initialFontSize;
+  for (;;) {
+    const res = runAt(fontSize);
+    if (res.fits) return res;
+    if (fontSize > opts.minFontSize) {
+      fontSize = Math.round(fontSize * 0.9);
+      continue;
     }
-    fontSize = Math.round(fontSize * 0.9);
+    if (fontSize <= 4) return res;
+    fontSize = Math.round(fontSize * 0.85);
   }
 }

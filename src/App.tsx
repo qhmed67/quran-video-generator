@@ -235,6 +235,7 @@ export default function App() {
       boxW: box.width,
       boxH: box.height,
       align: 'center',
+      atMinFont: true,
     });
     return { width: info.width, height: info.height };
   };
