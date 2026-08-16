@@ -23,9 +23,11 @@ export function drawGradientBackground(
   ctx.fillRect(0, 0, w, h);
 }
 
+export type BgImage = HTMLImageElement | HTMLCanvasElement | null;
+
 export function drawImageCover(
   ctx: CanvasRenderingContext2D,
-  img: HTMLImageElement,
+  img: HTMLImageElement | HTMLCanvasElement,
   width: number,
   height: number,
 ): void {
@@ -48,9 +50,9 @@ export function drawImageCover(
 export function drawBackground(
   ctx: CanvasRenderingContext2D,
   preset: GradientPreset,
-  img: HTMLImageElement | null,
+  img: BgImage,
 ): void {
-  if (img && img.complete && img.naturalWidth > 0) {
+  if (img && img.width > 0 && img.height > 0) {
     drawImageCover(ctx, img, ctx.canvas.width, ctx.canvas.height);
   } else {
     drawGradientBackground(ctx, preset);

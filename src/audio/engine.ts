@@ -46,6 +46,7 @@ function waitForSeekable(
 export async function playClip(
   audioUrl: string,
   clipStartOffsetSeconds: number,
+  clipEndSeconds?: number,
 ): Promise<ClipPlayer> {
   const element = new Audio();
   element.preload = 'auto';
@@ -68,9 +69,23 @@ export async function playClip(
   if (target > 0) {
     await waitForSeekable(element, target);
   }
+  const endAt = clipEndSeconds !== undefined && clipEndSeconds > 0 ? clipEndSeconds : null;
+  if (endAt !== null) {
+    element.addEventListener('timeupdate', () => {
+      if (element.currentTime - target >= endAt) {
+        element.pause();
+        element.dispatchEvent(new Event('ended'));
+      }
+    });
+  }
   return {
     element,
-    play: () => element.play(),
+    play: async () => {
+      if (endAt !== null && element.currentTime - target >= endAt - 0.05) {
+        element.currentTime = target;
+      }
+      await element.play();
+    },
     pause: () => element.pause(),
     stop: () => {
       element.pause();

@@ -7,12 +7,14 @@ import type { QfChapterReciter } from './data/types';
 import { exportClip } from './export/exporter';
 import type { CaptionTimeline, TimingGranularity } from './lib/types/timeline';
 import { GRADIENT_PRESETS, drawBackground } from './render/background';
-import type { GradientPreset } from './render/background';
+import type { BgImage, GradientPreset } from './render/background';
 import { loadFonts } from './render/fonts';
 import type { FontSet } from './render/fonts';
-import { renderFrame } from './render/renderFrame';
-import type { VerticalAnchor } from './render/renderFrame';
+import { defaultBounds, drawTransformOverlay, renderFrame } from './render/renderFrame';
+import type { SnapState, TextBounds, VerticalAnchor } from './render/renderFrame';
 import type { HorizontalAlign } from './render/layout';
+import CropModal from './components/CropModal';
+import type { CropAspect } from './components/CropModal';
 
 type Aspect = '9:16' | '1:1';
 
@@ -22,6 +24,8 @@ const ASPECTS: Record<Aspect, { width: number; height: number }> = {
 };
 
 const TRANSLATION_ID = 131;
+const SNAP_PX = 14;
+const MIN_BOX = 60;
 
 function downloadBlob(blob: Blob, name: string): void {
   const url = URL.createObjectURL(blob);
@@ -51,6 +55,10 @@ export default function App() {
   const [uthmaniFontReady, setUthmaniFontReady] = useState(true);
   const [textAnchorY, setTextAnchorY] = useState<VerticalAnchor>('center');
   const [textAlignX, setTextAlignX] = useState<HorizontalAlign>('center');
+  const [scrimEnabled, setScrimEnabled] = useState(false);
+  const [wordHighlightEnabled, setWordHighlightEnabled] = useState(false);
+  const [transformMode, setTransformMode] = useState(false);
+  const [cropImage, setCropImage] = useState<{ url: string; img: HTMLImageElement } | null>(null);
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const ctxRef = useRef<CanvasRenderingContext2D | null>(null);
@@ -58,18 +66,46 @@ export default function App() {
   const playerRef = useRef<ClipPlayer | null>(null);
   const timelineRef = useRef<CaptionTimeline | null>(null);
   const fontsRef = useRef<FontSet>({ uthmani: 'serif', translation: 'sans-serif', uthmaniLoaded: false });
-  const bgImageRef = useRef<HTMLImageElement | null>(null);
+  const bgImageRef = useRef<BgImage>(null);
   const bgPresetRef = useRef<GradientPreset>(GRADIENT_PRESETS[0]);
   const captionsRef = useRef({ uthmani: true, translation: false });
-  const textAnchorYRef = useRef<VerticalAnchor>('center');
   const textAlignXRef = useRef<HorizontalAlign>('center');
+  const boundsRef = useRef<TextBounds>(defaultBounds(1080, 1920));
+  const snapRef = useRef<SnapState>({ x: false, y: false });
+  const dragRef = useRef<{
+    type: 'move' | 'resize';
+    corner: string;
+    startX: number;
+    startY: number;
+    orig: TextBounds;
+  } | null>(null);
+  const scrimRef = useRef(false);
+  const wordHighlightRef = useRef(false);
+  const transformModeRef = useRef(false);
+  const isExportingRef = useRef(false);
 
   captionsRef.current = { uthmani: true, translation: translationEnabled };
   bgPresetRef.current = GRADIENT_PRESETS.find((p) => p.id === bgId) ?? GRADIENT_PRESETS[0];
-  textAnchorYRef.current = textAnchorY;
   textAlignXRef.current = textAlignX;
+  scrimRef.current = scrimEnabled;
+  wordHighlightRef.current = wordHighlightEnabled;
+  transformModeRef.current = transformMode;
+  isExportingRef.current = isExporting;
 
   const size = ASPECTS[aspect];
+
+  useEffect(() => {
+    const W = size.width;
+    const H = size.height;
+    const bw = Math.round(W * 0.9);
+    const bh = Math.round(H * 0.3);
+    const bx = Math.round((W - bw) / 2);
+    let by: number;
+    if (textAnchorY === 'top') by = Math.round(H * 0.08);
+    else if (textAnchorY === 'bottom') by = Math.round(H * 0.62);
+    else by = Math.round(H * 0.35);
+    boundsRef.current = { x: bx, y: by, width: bw, height: bh };
+  }, [size.width, size.height, textAnchorY]);
 
   const build = useCallback(
     async (rid: string, s: number, f: number, t: number, trans: boolean) => {
@@ -130,8 +166,10 @@ export default function App() {
 
   useEffect(() => {
     if (!timeline || !timeline.meta.audioUrl) return;
+    const dur =
+      timeline.verses.length > 0 ? timeline.verses[timeline.verses.length - 1].endSeconds : undefined;
     let cancelled = false;
-    playClip(timeline.meta.audioUrl, timeline.meta.clipStartOffsetSeconds)
+    playClip(timeline.meta.audioUrl, timeline.meta.clipStartOffsetSeconds, dur)
       .then((p) => {
         if (cancelled) {
           p.stop();
@@ -165,12 +203,17 @@ export default function App() {
           timeline: tl,
           captionsOn: captionsRef.current,
           fonts: fontsRef.current,
-          textAnchorY: textAnchorYRef.current,
           textAlignX: textAlignXRef.current,
+          bounds: boundsRef.current,
+          scrimEnabled: scrimRef.current,
+          wordHighlightEnabled: wordHighlightRef.current,
           drawBackground: (c) => drawBackground(c, bgPresetRef.current, bgImageRef.current),
         });
       } else {
         drawBackground(ctx, bgPresetRef.current, bgImageRef.current);
+      }
+      if (transformModeRef.current && !isExportingRef.current) {
+        drawTransformOverlay(ctx, boundsRef.current, snapRef.current);
       }
       rafRef.current = requestAnimationFrame(loop);
     };
@@ -178,12 +221,110 @@ export default function App() {
     return () => cancelAnimationFrame(rafRef.current);
   }, []);
 
+  const toLogical = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return { x: 0, y: 0 };
+    const r = canvas.getBoundingClientRect();
+    return {
+      x: (e.clientX - r.left) * (canvas.width / r.width),
+      y: (e.clientY - r.top) * (canvas.height / r.height),
+    };
+  };
+
+  const hitBoxHandle = (b: TextBounds, p: { x: number; y: number }): string | null => {
+    const h = Math.max(12, Math.round(size.width * 0.02));
+    const corners: { id: string; x: number; y: number }[] = [
+      { id: 'tl', x: b.x, y: b.y },
+      { id: 'tr', x: b.x + b.width, y: b.y },
+      { id: 'bl', x: b.x, y: b.y + b.height },
+      { id: 'br', x: b.x + b.width, y: b.y + b.height },
+    ];
+    for (const c of corners) {
+      if (Math.abs(p.x - c.x) <= h && Math.abs(p.y - c.y) <= h) return c.id;
+    }
+    return null;
+  };
+
+  const handlePointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (!transformModeRef.current) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const p = toLogical(e);
+    const b = boundsRef.current;
+    const corner = hitBoxHandle(b, p);
+    if (corner) {
+      dragRef.current = { type: 'resize', corner, startX: p.x, startY: p.y, orig: { ...b } };
+    } else if (p.x >= b.x && p.x <= b.x + b.width && p.y >= b.y && p.y <= b.y + b.height) {
+      dragRef.current = { type: 'move', corner: '', startX: p.x, startY: p.y, orig: { ...b } };
+    } else {
+      return;
+    }
+    canvas.setPointerCapture(e.pointerId);
+  };
+
+  const handlePointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    const d = dragRef.current;
+    if (!d) return;
+    const p = toLogical(e);
+    const W = size.width;
+    const H = size.height;
+    const dx = p.x - d.startX;
+    const dy = p.y - d.startY;
+    let nx = d.orig.x;
+    let ny = d.orig.y;
+    let nw = d.orig.width;
+    let nh = d.orig.height;
+    if (d.type === 'move') {
+      nx = d.orig.x + dx;
+      ny = d.orig.y + dy;
+    } else {
+      let left = d.orig.x;
+      let top = d.orig.y;
+      let right = d.orig.x + d.orig.width;
+      let bottom = d.orig.y + d.orig.height;
+      if (d.corner.includes('l')) left = d.orig.x + dx;
+      if (d.corner.includes('r')) right = d.orig.x + dx;
+      if (d.corner.includes('t')) top = d.orig.y + dy;
+      if (d.corner.includes('b')) bottom = d.orig.y + dy;
+      if (right - left < MIN_BOX) {
+        if (d.corner.includes('l')) left = right - MIN_BOX;
+        else right = left + MIN_BOX;
+      }
+      if (bottom - top < MIN_BOX) {
+        if (d.corner.includes('t')) top = bottom - MIN_BOX;
+        else bottom = top + MIN_BOX;
+      }
+      nx = left;
+      ny = top;
+      nw = right - left;
+      nh = bottom - top;
+    }
+    nx = Math.min(Math.max(nx, 0), W - nw);
+    ny = Math.min(Math.max(ny, 0), H - nh);
+    const cx = nx + nw / 2;
+    const cy = ny + nh / 2;
+    const snapX = Math.abs(cx - W / 2) < SNAP_PX;
+    const snapY = Math.abs(cy - H / 2) < SNAP_PX;
+    if (snapX) nx = W / 2 - nw / 2;
+    if (snapY) ny = H / 2 - nh / 2;
+    nx = Math.min(Math.max(nx, 0), W - nw);
+    ny = Math.min(Math.max(ny, 0), H - nh);
+    snapRef.current = { x: snapX, y: snapY };
+    boundsRef.current = { x: nx, y: ny, width: nw, height: nh };
+  };
+
+  const handlePointerUp = () => {
+    dragRef.current = null;
+    snapRef.current = { x: false, y: false };
+  };
+
   const handlePlayPause = useCallback(async () => {
     let p = playerRef.current;
     const tl = timelineRef.current;
     if (!p && tl && tl.meta.audioUrl) {
       try {
-        p = await playClip(tl.meta.audioUrl, tl.meta.clipStartOffsetSeconds);
+        const dur = tl.verses.length > 0 ? tl.verses[tl.verses.length - 1].endSeconds : undefined;
+        p = await playClip(tl.meta.audioUrl, tl.meta.clipStartOffsetSeconds, dur);
         p.element.addEventListener('ended', () => setIsPlaying(false));
         playerRef.current = p;
       } catch (err) {
@@ -213,11 +354,24 @@ export default function App() {
     if (!file) return;
     const url = URL.createObjectURL(file);
     const img = new Image();
-    img.onload = () => {
-      if (bgImageRef.current) URL.revokeObjectURL(bgImageRef.current.src);
-      bgImageRef.current = img;
-    };
+    img.onload = () => setCropImage({ url, img });
+    img.onerror = () => URL.revokeObjectURL(url);
     img.src = url;
+  }, []);
+
+  const handleCropCancel = useCallback(() => {
+    setCropImage((cur) => {
+      if (cur) URL.revokeObjectURL(cur.url);
+      return null;
+    });
+  }, []);
+
+  const handleCropConfirm = useCallback((canvas: HTMLCanvasElement) => {
+    setCropImage((cur) => {
+      if (cur) URL.revokeObjectURL(cur.url);
+      return null;
+    });
+    bgImageRef.current = canvas;
   }, []);
 
   const handleExport = useCallback(async () => {
@@ -251,12 +405,33 @@ export default function App() {
   }, []);
 
   const durSeconds =
-  timeline && timeline.verses.length > 0
-    ? timeline.verses[timeline.verses.length - 1].endSeconds
-    : 0;
+    timeline && timeline.verses.length > 0
+      ? timeline.verses[timeline.verses.length - 1].endSeconds
+      : 0;
 
   return (
     <div style={{ display: 'flex', gap: 24, padding: 24, height: '100%' }}>
+      <main style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <canvas
+          ref={canvasRef}
+          width={size.width}
+          height={size.height}
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+          onPointerCancel={handlePointerUp}
+          style={{
+            height: '100%',
+            maxHeight: 720,
+            aspectRatio: `${size.width} / ${size.height}`,
+            borderRadius: 12,
+            boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
+            touchAction: 'none',
+            cursor: transformMode ? 'move' : 'default',
+          }}
+        />
+      </main>
+
       <aside style={{ width: 320, display: 'flex', flexDirection: 'column', gap: 12 }}>
         <h1 style={{ margin: 0, fontSize: 20 }}>Quranic Video Generator</h1>
 
@@ -355,7 +530,7 @@ export default function App() {
             style={inputStyle}
           >
             <option value="top">Top</option>
-            <option value="center">Center (default)</option>
+            <option value="center">Center</option>
             <option value="bottom">Bottom</option>
           </select>
         </label>
@@ -367,7 +542,7 @@ export default function App() {
             onChange={(e) => setTextAlignX(e.target.value as HorizontalAlign)}
             style={inputStyle}
           >
-            <option value="center">Center (default)</option>
+            <option value="center">Center</option>
             <option value="right">Right</option>
             <option value="left">Left</option>
           </select>
@@ -381,6 +556,39 @@ export default function App() {
           />
           Show translation
         </label>
+
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <input
+            type="checkbox"
+            checked={scrimEnabled}
+            onChange={(e) => setScrimEnabled(e.target.checked)}
+          />
+          Caption background (scrim)
+        </label>
+
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <input
+            type="checkbox"
+            checked={wordHighlightEnabled}
+            onChange={(e) => setWordHighlightEnabled(e.target.checked)}
+          />
+          Word-by-word highlight
+        </label>
+
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <input
+            type="checkbox"
+            checked={transformMode}
+            onChange={(e) => setTransformMode(e.target.checked)}
+          />
+          Text transform (drag / resize on canvas)
+        </label>
+        {transformMode && (
+          <div style={{ fontSize: 12, opacity: 0.75 }}>
+            Drag inside the box to move it, drag corner handles to resize. The box snaps to the
+            canvas center guides. Overlay is hidden during export.
+          </div>
+        )}
 
         {granularity && (
           <div style={{ fontSize: 13, opacity: 0.8 }}>
@@ -416,20 +624,14 @@ export default function App() {
         )}
       </aside>
 
-      <main style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <canvas
-          ref={canvasRef}
-          width={size.width}
-          height={size.height}
-          style={{
-            height: '100%',
-            maxHeight: 720,
-            aspectRatio: `${size.width} / ${size.height}`,
-            borderRadius: 12,
-            boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
-          }}
+      {cropImage && (
+        <CropModal
+          image={cropImage.img}
+          defaultAspect={aspect as CropAspect}
+          onConfirm={handleCropConfirm}
+          onCancel={handleCropCancel}
         />
-      </main>
+      )}
     </div>
   );
 }

@@ -7,11 +7,15 @@ export function toArabicIndicDigits(n: number): string {
 }
 
 export function stripAyahOrnaments(text: string): string {
-  return text.replace(/[\uFD3E\uFD3F]/g, '');
+  return text.replace(/[\uFD3E\uFD3F\u06DD]/g, '');
+}
+
+export function ornateAyahMarker(ayahNumber: number): string {
+  return `\uFD3F${toArabicIndicDigits(ayahNumber)}\uFD3E`;
 }
 
 export function withAyahMarker(text: string, ayahNumber: number): string {
-  return `${text}\u2002${AYAH_END_MARKER}${toArabicIndicDigits(ayahNumber)}`;
+  return `${text}\u2002${ornateAyahMarker(ayahNumber)}`;
 }
 
 export interface WordDef {
