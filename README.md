@@ -36,10 +36,21 @@ Set in the Vercel project dashboard:
 |---|---|
 | `QF_CLIENT_ID` | Quran Foundation app client id |
 | `QF_CLIENT_SECRET` | Quran Foundation app client secret (never sent to the browser) |
-| `QF_TOKEN_ENDPOINT` | OAuth token endpoint (defaults to `https://apis.quran.foundation/oauth/token`) |
+| `QF_TOKEN_ENDPOINT` | OAuth token endpoint (defaults to `https://oauth2.quran.foundation/oauth2/token`) |
+| `QF_API_BASE` | API host used by the proxy (defaults to `https://apis.quran.foundation`) |
+| `VITE_QF_API_BASE` | API base incl. path used by the client (defaults to `https://apis.quran.foundation/content/api/v4`) |
 
-Without QF credentials the app falls back to the public quran.com endpoints for verse
-text and mp3quran for ayah timing.
+QF credentials are per-environment. The **Prelive** (test) environment has a separate
+Client ID/Secret and only seeds some surahs (e.g. chapters 1–2); use the **Production**
+tab's credentials for all 114 surahs. For Prelive set:
+
+- `QF_TOKEN_ENDPOINT=https://prelive-oauth2.quran.foundation/oauth2/token`
+- `QF_API_BASE=https://apis-prelive.quran.foundation`
+- `VITE_QF_API_BASE=https://apis-prelive.quran.foundation/content/api/v4`
+
+Audio and per-word timing come from the QF v4 `chapter_recitations` endpoint (single
+mp3 per surah with absolute timestamps/segments). If chapter audio is unavailable the
+timeline falls back to estimated even-split captions with no audio.
 
 ## Fonts
 
@@ -55,7 +66,7 @@ docs/           architecture.md + caption-timeline JSON schema
 scripts/        copy-ffmpeg.mjs (self-hosts ffmpeg cores into public/)
 src/
   lib/          time unit conversion (ms <-> s), timeline types
-  data/         sources (QF/mp3quran/quran-align), resolver, timeline builder
+  data/         sources (QF v4), resolver, timeline builder
   render/       shared renderFrame (canvas), RTL layout, fonts, backgrounds
   audio/        audio engine (HTMLAudioElement clock)
   export/       MediaRecorder capture + ffmpeg.wasm transcode

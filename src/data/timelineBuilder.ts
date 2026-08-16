@@ -69,7 +69,11 @@ export async function buildTimeline(
   if (translationEnabled) {
     try {
       const rows = await fetchQfTranslation(req.range, req.captions.translation.translationId);
-      translations = new Map(rows.map((r) => [r.verseKey, r.text]));
+      if (rows.length === 0) {
+        translationEnabled = false;
+      } else {
+        translations = new Map(rows.map((r) => [r.verseKey, r.text]));
+      }
     } catch {
       translationEnabled = false;
     }

@@ -1,15 +1,18 @@
 import { Buffer } from 'node:buffer';
 import { Readable } from 'node:stream';
-import { defineConfig, type Plugin } from 'vite';
+import { defineConfig, loadEnv, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 
 const ALLOWED_HOSTS = [
   'apis.quran.foundation',
   'apis-prelive.quran.foundation',
   'api.quran.com',
-  'mp3quran.net',
+  'download.quranicaudio.com',
+  'audio.qurancdn.com',
+  'cdn.qurancdn.com',
+  'verses.quran.com',
 ];
-const ALLOWED_SUFFIXES = ['.mp3quran.net'];
+const ALLOWED_SUFFIXES = ['.quranicaudio.com', '.qurancdn.com', '.mp3quran.net'];
 
 function isAllowed(target: URL): boolean {
   if (target.protocol !== 'https:') return false;
@@ -18,7 +21,46 @@ function isAllowed(target: URL): boolean {
   return ALLOWED_SUFFIXES.some((s) => host.endsWith(s));
 }
 
-function devProxy(): Plugin {
+interface QfTokenCache {
+  token: string;
+  expiresAt: number;
+}
+
+let qfTokenCache: QfTokenCache | null = null;
+
+async function getDevQfToken(env: Record<string, string>): Promise<string | null> {
+  const clientId = env.QF_CLIENT_ID;
+  const clientSecret = env.QF_CLIENT_SECRET;
+  if (!clientId || !clientSecret) return null;
+  if (qfTokenCache && Date.now() < qfTokenCache.expiresAt) return qfTokenCache.token;
+  const endpoint = env.QF_TOKEN_ENDPOINT ?? 'https://oauth2.quran.foundation/oauth2/token';
+  const basic = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
+  try {
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        Authorization: `Basic ${basic}`,
+        'User-Agent': 'quran-video-generator/0.1',
+      },
+      body: 'grant_type=client_credentials&scope=content',
+    });
+    if (!res.ok) return null;
+    const data = (await res.json()) as { access_token?: string; expires_in?: number };
+    if (!data.access_token) return null;
+    const ttl = Number(data.expires_in ?? 3600);
+    qfTokenCache = { token: data.access_token, expiresAt: Date.now() + (ttl - 60) * 1000 };
+    return data.access_token;
+  } catch {
+    return null;
+  }
+}
+
+function isQfHost(host: string): boolean {
+  return host === 'apis.quran.foundation' || host === 'apis-prelive.quran.foundation';
+}
+
+function devProxy(env: Record<string, string>): Plugin {
   return {
     name: 'dev-proxy',
     configureServer(server) {
@@ -46,6 +88,13 @@ function devProxy(): Plugin {
           const upstreamHeaders: Record<string, string> = {};
           if (typeof req.headers.range === 'string') {
             upstreamHeaders.Range = req.headers.range;
+          }
+          if (isQfHost(target.hostname)) {
+            const token = await getDevQfToken(env);
+            if (token) {
+              upstreamHeaders['x-auth-token'] = token;
+              upstreamHeaders['x-client-id'] = env.QF_CLIENT_ID ?? '';
+            }
           }
           const upstream = await fetch(target.toString(), { headers: upstreamHeaders });
           const body = upstream.body;
@@ -78,12 +127,15 @@ function devProxy(): Plugin {
   };
 }
 
-export default defineConfig({
-  plugins: [react(), devProxy()],
-  server: {
-    headers: {
-      'Cross-Origin-Opener-Policy': 'same-origin',
-      'Cross-Origin-Embedder-Policy': 'require-corp',
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, process.cwd(), '');
+  return {
+    plugins: [react(), devProxy(env)],
+    server: {
+      headers: {
+        'Cross-Origin-Opener-Policy': 'same-origin',
+        'Cross-Origin-Embedder-Policy': 'require-corp',
+      },
     },
-  },
+  };
 });

@@ -1,29 +1,23 @@
 import { msToSeconds } from '../lib/time';
 import {
-  anchorQuranAlign,
-  expandRangedSegments,
-  fetchMp3quranAyahTiming,
-  fetchMp3quranReciters,
-  fetchQfAudioTiming,
-  loadQuranAlignSurah,
-  mp3quranAudioUrl,
+  dedupeWordSegments,
+  fetchQfChapterAudio,
+  fetchQfChapterReciters,
+  proxiedUrl,
 } from './sources';
 import type {
-  Mp3quranReciter,
+  QfChapterReciter,
   RawWordSegmentSeconds,
   ReciterCapability,
   TimingResolution,
   VerseRange,
 } from './types';
 
-const QF_RECITER_IDS: Record<string, number> = {};
-const QURAN_ALIGN_FILES: Record<string, string> = {};
+let reciterCache: QfChapterReciter[] | null = null;
 
-let reciterCache: Mp3quranReciter[] | null = null;
-
-export async function fetchReciterCatalog(): Promise<Mp3quranReciter[]> {
+export async function fetchReciterCatalog(): Promise<QfChapterReciter[]> {
   if (reciterCache === null) {
-    reciterCache = await fetchMp3quranReciters();
+    reciterCache = await fetchQfChapterReciters();
   }
   return reciterCache;
 }
@@ -31,33 +25,11 @@ export async function fetchReciterCatalog(): Promise<Mp3quranReciter[]> {
 export async function lookupReciter(reciterId: string): Promise<ReciterCapability> {
   const reciters = await fetchReciterCatalog();
   const rec = reciters.find((r) => String(r.id) === reciterId);
-  const moshaf = rec?.moshaf[0] ?? null;
   return {
     reciterId,
     name: rec?.name ?? reciterId,
-    qfReciterId: QF_RECITER_IDS[reciterId] ?? null,
-    mp3quranReadId: moshaf?.id ?? null,
-    mp3quranFolderUrl: moshaf?.server ?? null,
-    quranAlignReciterKey: QURAN_ALIGN_FILES[reciterId] ?? null,
+    qfReciterId: rec?.id ?? null,
   };
-}
-
-interface ClipVerseWindow {
-  verseKey: string;
-  startSeconds: number;
-  endSeconds: number;
-}
-
-function toClipRelative(
-  perVerse: { verseKey: string; startSeconds: number; endSeconds: number }[],
-  clipStartMs: number,
-): ClipVerseWindow[] {
-  const clipStart = msToSeconds(clipStartMs);
-  return perVerse.map((v) => ({
-    verseKey: v.verseKey,
-    startSeconds: Math.max(0, v.startSeconds - clipStart),
-    endSeconds: Math.max(0, v.endSeconds - clipStart),
-  }));
 }
 
 export async function resolveTiming(req: {
@@ -69,117 +41,62 @@ export async function resolveTiming(req: {
   const range: VerseRange = { surah: req.surah, from: req.verses[0], to: req.verses[1] };
   const warnings: string[] = [];
 
-  const qf = capability.qfReciterId
-    ? await fetchQfAudioTiming(capability.qfReciterId, range)
-    : null;
-  if (qf) {
-    const clipStartMs = qf.perVerse[0]?.startMs ?? 0;
-    const perVerse = toClipRelative(
-      qf.perVerse.map((v) => ({
-        verseKey: v.verseKey,
-        startSeconds: msToSeconds(v.startMs),
-        endSeconds: msToSeconds(v.endMs),
-      })),
-      clipStartMs,
-    );
-    if (qf.granularity === 'word') {
-      const wordSegments: Record<string, RawWordSegmentSeconds[]> = {};
-      for (const v of qf.perVerse) {
-        if (!v.segments) continue;
-        const segmentsMs = expandRangedSegments(v.segments);
-        if (segmentsMs.length === 0) continue;
-        wordSegments[v.verseKey] = segmentsMs.map(([w0, , s, e]) => ({
-          index: w0,
-          startSeconds: Math.max(0, msToSeconds(s - clipStartMs)),
-          endSeconds: Math.max(0, msToSeconds(e - clipStartMs)),
-        }));
-      }
-      return {
-        granularity: 'word',
-        sourceChain: ['qf-v4:word'],
-        perVerse,
-        wordSegments,
-        audioUrl: mp3quranAudioUrl(capability.mp3quranFolderUrl ?? '', req.surah),
-        clipStartOffsetSeconds: msToSeconds(clipStartMs),
-        warnings,
-      };
-    }
-    warnings.push('qf-v4 verse-level only; continuing to stronger ayah source');
-  }
-
-  const qa = capability.quranAlignReciterKey
-    ? await loadQuranAlignSurah(capability.quranAlignReciterKey, req.surah)
-    : null;
-
-  const mp = capability.mp3quranReadId
-    ? await fetchMp3quranAyahTiming(req.surah, capability.mp3quranReadId)
-    : null;
-
-  const entries = mp
-    ? Array.from(mp.entries())
-        .filter(([key]) => {
-          const [, ayah] = key.split(':').map(Number);
+  if (capability.qfReciterId !== null) {
+    const audio = await fetchQfChapterAudio(capability.qfReciterId, range.surah, true);
+    if (audio) {
+      const inRange = audio.timestamps
+        .filter((t) => {
+          const ayah = Number(t.verse_key.split(':')[1]);
           return ayah >= range.from && ayah <= range.to;
         })
-        .sort((a, b) => a[1].startMs - b[1].startMs)
-    : [];
+        .sort((a, b) => Number(a.verse_key.split(':')[1]) - Number(b.verse_key.split(':')[1]));
 
-  const clipStartMs = entries[0]?.[1].startMs ?? 0;
-  const perVerse = entries.map(([key, t]) => ({
-    verseKey: key,
-    startSeconds: Math.max(0, msToSeconds(t.startMs - clipStartMs)),
-    endSeconds: Math.max(0, msToSeconds(t.endMs - clipStartMs)),
-  }));
+      if (inRange.length > 0) {
+        const clipStartMs = inRange[0].timestamp_from;
+        const perVerse = inRange.map((t) => ({
+          verseKey: t.verse_key,
+          startSeconds: Math.max(0, msToSeconds(t.timestamp_from - clipStartMs)),
+          endSeconds: Math.max(0, msToSeconds(t.timestamp_to - clipStartMs)),
+        }));
 
-  if (perVerse.length === 0) {
-    return {
-      granularity: 'estimated',
-      sourceChain: ['estimated:even-split'],
-      perVerse: estimatePerVerse(range),
-      wordSegments: null,
-      audioUrl: mp3quranAudioUrl(capability.mp3quranFolderUrl ?? '', req.surah),
-      clipStartOffsetSeconds: 0,
-      warnings: [...warnings, 'no verified timing source; captions are estimated'],
-    };
-  }
+        const wordSegments: Record<string, RawWordSegmentSeconds[]> = {};
+        let hasSegments = false;
+        for (const t of inRange) {
+          if (!t.segments || t.segments.length === 0) continue;
+          const deduped = dedupeWordSegments(t.segments);
+          if (deduped.length === 0) continue;
+          hasSegments = true;
+          wordSegments[t.verse_key] = deduped.map(([wi, s, e]) => ({
+            index: wi - 1,
+            startSeconds: Math.max(0, msToSeconds(s - clipStartMs)),
+            endSeconds: Math.max(0, msToSeconds(e - clipStartMs)),
+          }));
+        }
 
-  if (qa && mp) {
-    const wordSegments: Record<string, RawWordSegmentSeconds[]> = {};
-    for (const entry of qa) {
-      const key = `${entry.surah}:${entry.ayah}`;
-      if (!(entry.ayah >= range.from && entry.ayah <= range.to)) continue;
-      const win = perVerse.find((p) => p.verseKey === key);
-      if (!win) continue;
-      const anchored = anchorQuranAlign(win.startSeconds, win.endSeconds, entry.segments);
-      const segmentsSeconds = expandRangedSegments(anchored);
-      if (segmentsSeconds.length === 0) continue;
-      wordSegments[key] = segmentsSeconds.map(([w0, , s, e]) => ({
-        index: w0,
-        startSeconds: s,
-        endSeconds: e,
-      }));
-    }
-    if (Object.keys(wordSegments).length > 0) {
-      return {
-        granularity: 'word',
-        sourceChain: ['quran-align:word', 'mp3quran:ayah'],
-        perVerse,
-        wordSegments,
-        audioUrl: mp3quranAudioUrl(capability.mp3quranFolderUrl ?? '', req.surah),
-        clipStartOffsetSeconds: msToSeconds(clipStartMs),
-        warnings,
-      };
+        return {
+          granularity: hasSegments ? 'word' : 'ayah',
+          sourceChain: hasSegments ? ['qf-v4:chapter:word'] : ['qf-v4:chapter:ayah'],
+          perVerse,
+          wordSegments: hasSegments ? wordSegments : null,
+          audioUrl: proxiedUrl(audio.audio_url),
+          clipStartOffsetSeconds: msToSeconds(clipStartMs),
+          warnings,
+        };
+      }
+      warnings.push('qf-v4 returned no timestamps for the selected range');
+    } else {
+      warnings.push('qf-v4 chapter audio unavailable for this surah');
     }
   }
 
   return {
-    granularity: 'ayah',
-    sourceChain: ['mp3quran:ayah'],
-    perVerse,
+    granularity: 'estimated',
+    sourceChain: ['estimated:even-split'],
+    perVerse: estimatePerVerse(range),
     wordSegments: null,
-    audioUrl: mp3quranAudioUrl(capability.mp3quranFolderUrl ?? '', req.surah),
-    clipStartOffsetSeconds: msToSeconds(clipStartMs),
-    warnings,
+    audioUrl: '',
+    clipStartOffsetSeconds: 0,
+    warnings: [...warnings, 'no verified timing source; captions are estimated'],
   };
 }
 

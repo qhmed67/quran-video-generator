@@ -3,7 +3,7 @@ import { playClip } from './audio/engine';
 import type { ClipPlayer } from './audio/engine';
 import { resolveTiming, fetchReciterCatalog } from './data/resolver';
 import { buildTimeline } from './data/timelineBuilder';
-import type { Mp3quranReciter } from './data/types';
+import type { QfChapterReciter } from './data/types';
 import { exportClip } from './export/exporter';
 import type { CaptionTimeline, TimingGranularity } from './lib/types/timeline';
 import { GRADIENT_PRESETS, drawBackground } from './render/background';
@@ -33,7 +33,7 @@ function downloadBlob(blob: Blob, name: string): void {
 }
 
 export default function App() {
-  const [reciters, setReciters] = useState<Mp3quranReciter[]>([]);
+  const [reciters, setReciters] = useState<QfChapterReciter[]>([]);
   const [reciterId, setReciterId] = useState('');
   const [surah, setSurah] = useState(36);
   const [from, setFrom] = useState(1);
@@ -129,7 +129,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (!timeline) return;
+    if (!timeline || !timeline.meta.audioUrl) return;
     let cancelled = false;
     playClip(timeline.meta.audioUrl, timeline.meta.clipStartOffsetSeconds)
       .then((p) => {
@@ -181,7 +181,7 @@ export default function App() {
   const handlePlayPause = useCallback(async () => {
     let p = playerRef.current;
     const tl = timelineRef.current;
-    if (!p && tl) {
+    if (!p && tl && tl.meta.audioUrl) {
       try {
         p = await playClip(tl.meta.audioUrl, tl.meta.clipStartOffsetSeconds);
         p.element.addEventListener('ended', () => setIsPlaying(false));
@@ -270,6 +270,7 @@ export default function App() {
             {reciters.map((r) => (
               <option key={r.id} value={String(r.id)}>
                 {r.name}
+                {r.style?.name ? ` — ${r.style.name}` : ''}
               </option>
             ))}
           </select>

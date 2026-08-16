@@ -4,9 +4,12 @@ const ALLOWED_HOSTS = [
   'apis.quran.foundation',
   'apis-prelive.quran.foundation',
   'api.quran.com',
-  'mp3quran.net',
+  'download.quranicaudio.com',
+  'audio.qurancdn.com',
+  'cdn.qurancdn.com',
+  'verses.quran.com',
 ];
-const ALLOWED_SUFFIXES = ['.mp3quran.net'];
+const ALLOWED_SUFFIXES = ['.quranicaudio.com', '.qurancdn.com', '.mp3quran.net'];
 
 function isAllowed(target: URL): boolean {
   if (target.protocol !== 'https:') return false;

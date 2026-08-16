@@ -16,16 +16,28 @@ export interface ReciterCapability {
   reciterId: string;
   name: string;
   qfReciterId: number | null;
-  mp3quranReadId: number | null;
-  mp3quranFolderUrl: string | null;
-  quranAlignReciterKey: string | null;
 }
 
-export interface QfVerseTiming {
-  verseKey: string;
-  startMs: number;
-  endMs: number;
-  segments: [number, number, number, number][] | null;
+export interface QfChapterReciter {
+  id: number;
+  name: string;
+  style?: { name?: string };
+  qirat?: { name?: string };
+}
+
+export interface QfChapterTimestamp {
+  verse_key: string;
+  timestamp_from: number;
+  timestamp_to: number;
+  segments: [number, number, number][] | null;
+}
+
+export interface QfChapterAudioFile {
+  id: number;
+  chapter_id: number;
+  audio_url: string;
+  format?: string;
+  timestamps: QfChapterTimestamp[];
 }
 
 export interface VerseTimingSeconds {
@@ -42,35 +54,6 @@ export interface TimingResolution {
   audioUrl: string;
   clipStartOffsetSeconds: number;
   warnings: string[];
-}
-
-export interface Mp3quranMoshaf {
-  id: number;
-  name: string;
-  server: string;
-  surah_total: number;
-  moshaf_type: number;
-  surah_list: string;
-}
-
-export interface Mp3quranReciter {
-  id: number;
-  name: string;
-  letter: string;
-  moshaf: Mp3quranMoshaf[];
-}
-
-export interface Mp3quranAyahTimingRow {
-  surah: number;
-  ayah: number;
-  start_time: number;
-  end_time: number;
-}
-
-export interface QuranAlignSegment {
-  surah: number;
-  ayah: number;
-  segments: [number, number, number, number][];
 }
 
 export interface TimelineRequest {
