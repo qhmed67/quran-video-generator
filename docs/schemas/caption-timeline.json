@@ -1,0 +1,83 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "caption-timeline.json",
+  "title": "QuranicVideo CaptionTimeline",
+  "description": "Single source of truth driving the web canvas renderer AND the Android renderer. Time units: SECONDS (float), relative to clip start (0 = first frame of the clip).",
+  "type": "object",
+  "required": ["version", "units", "meta", "verses"],
+  "properties": {
+    "version": { "const": 1 },
+    "units": {
+      "type": "object",
+      "required": ["time"],
+      "properties": { "time": { "const": "seconds" } }
+    },
+    "meta": {
+      "type": "object",
+      "required": ["granularity", "sourceChain", "surah", "versesFrom", "versesTo", "reciterId", "audioUrl", "clipStartOffsetSeconds", "captions"],
+      "properties": {
+        "granularity": { "enum": ["word", "ayah", "estimated"] },
+        "sourceChain": { "type": "array", "items": { "type": "string" } },
+        "reciterId": { "type": "string" },
+        "surah": { "type": "integer", "minimum": 1, "maximum": 114 },
+        "versesFrom": { "type": "integer" },
+        "versesTo": { "type": "integer" },
+        "audioUrl": { "type": "string", "format": "uri" },
+        "clipStartOffsetSeconds": { "type": "number", "minimum": 0 },
+        "captions": {
+          "type": "object",
+          "required": ["uthmani", "translation"],
+          "properties": {
+            "uthmani": { "type": "boolean" },
+            "translation": {
+              "type": "object",
+              "required": ["enabled", "translationId", "language"],
+              "properties": {
+                "enabled": { "type": "boolean" },
+                "translationId": { "type": "integer" },
+                "language": { "type": "string" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "verses": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["verseKey", "ayahNumber", "startSeconds", "endSeconds", "uthmani", "translation"],
+        "properties": {
+          "verseKey": { "type": "string", "pattern": "^\\d+:\\d+$" },
+          "ayahNumber": { "type": "integer" },
+          "startSeconds": { "type": "number", "minimum": 0 },
+          "endSeconds": { "type": "number", "minimum": 0 },
+          "uthmani": { "type": "string", "description": "Raw verse text; renderer appends U+06DD + Arabic-Indic digits; FD3E/FD3F stripped if present" },
+          "translation": { "type": "string" },
+          "words": {
+            "type": ["array", "null"],
+            "description": "null/omitted when granularity is 'ayah' or 'estimated'. Each word text is the U+0020-split token of `uthmani`, so word indices align with the text.",
+            "items": {
+              "type": "object",
+              "required": ["index", "text", "startSeconds", "endSeconds"],
+              "properties": {
+                "index": { "type": "integer", "minimum": 0 },
+                "text": { "type": "string" },
+                "startSeconds": { "type": "number" },
+                "endSeconds": { "type": "number" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "fade": {
+      "type": "object",
+      "required": ["inSeconds", "outSeconds"],
+      "properties": {
+        "inSeconds": { "type": "number", "default": 0.25 },
+        "outSeconds": { "type": "number", "default": 0.25 }
+      }
+    }
+  }
+}

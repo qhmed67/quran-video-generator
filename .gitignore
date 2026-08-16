@@ -17,6 +17,10 @@ dist
 dist-ssr
 *.local
 
+# Generated ffmpeg cores (recreated by scripts/copy-ffmpeg.mjs)
+public/ffmpeg
+public/ffmpeg-st
+
 # Editor / OS
 .vscode/*
 !.vscode/extensions.json
@@ -37,3 +41,6 @@ dist-ssr
 AGENTS.md
 docs/plan.md
 .opencode/
+
+# TypeScript build info
+*.tsbuildinfo
