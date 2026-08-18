@@ -2,10 +2,12 @@ import { compareToWindow } from '../lib/time';
 import type { CaptionTimeline, VerseTimelineEntry, WordSegmentSeconds } from '../lib/types/timeline';
 import type { FontSet } from './fonts';
 import {
+  AYAH_END_MARKER,
   countArabicLetters,
   displayWordText,
   isStandaloneToken,
   layoutTextBlock,
+  ornateAyahMarker,
   stripAyahOrnaments,
   stripQuranicMarks,
 } from './layout';
@@ -147,9 +149,12 @@ function buildUthmaniLayout(
 ): UthmaniLayout {
   const { fonts, boxW, boxH, align, atMinFont } = opts;
   const displayWords: WordDef[] = verse.words
-    ? verse.words
-        .map((w) => ({ index: w.index, text: displayWordText(w.text).trim() }))
-        .filter((w) => w.text.length > 0 && countArabicLetters(w.text) > 0)
+    ? [
+        ...verse.words
+          .map((w) => ({ index: w.index, text: displayWordText(w.text).trim() }))
+          .filter((w) => w.text.length > 0 && countArabicLetters(w.text) > 0),
+        { index: -1, text: ornateAyahMarker(verse.ayahNumber) },
+      ]
     : (() => {
         const raw = stripAyahOrnaments(stripQuranicMarks(verse.uthmani)).trim();
         const parts = raw.length ? raw.split(/\s+/) : [];
@@ -160,7 +165,7 @@ function buildUthmaniLayout(
             kept.push({ index: kept.length, text });
           }
         }
-        return kept;
+        return [...kept, { index: -1, text: ornateAyahMarker(verse.ayahNumber) }];
       })();
 
   const rowHeight = Math.round(boxH * 0.16);
@@ -254,6 +259,26 @@ function drawUthmaniVerse(
 
   for (const row of rows) {
     for (const wl of row.words) {
+      if (wl.index === -1) {
+        ctx.globalAlpha = opts.opacity;
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.75)';
+        ctx.shadowBlur = baseShadowBlur;
+        ctx.fillStyle = '#ffd76b';
+        ctx.fillText(AYAH_END_MARKER, wl.x, blockTopRel + row.y);
+        const digits = stripAyahOrnaments(wl.text);
+        if (digits.length > 0) {
+          const digitSize = Math.max(10, Math.round(wl.width * 0.38));
+          ctx.font = `400 ${digitSize}px ${fonts.uthmani}`;
+          ctx.textAlign = 'center';
+          ctx.direction = 'ltr';
+          ctx.fillText(digits, wl.x - wl.width / 2, blockTopRel + row.y - wl.width * 0.35);
+          ctx.font = `400 ${fontSize}px ${fonts.uthmani}`;
+          ctx.textAlign = 'right';
+          ctx.direction = 'rtl';
+        }
+        ctx.globalAlpha = opts.opacity;
+        continue;
+      }
       if (verse.words && wordHighlightEnabled) {
         const glow = highlight && wl.index === highlight.word.index ? highlight : null;
         if (glow) {
