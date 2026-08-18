@@ -5,12 +5,13 @@ import { resolveTiming, fetchReciterCatalog } from './data/resolver';
 import { buildTimeline } from './data/timelineBuilder';
 import type { QfChapterReciter } from './data/types';
 import { exportClip } from './export/exporter';
-import type { CaptionTimeline, TimingGranularity } from './lib/types/timeline';
+import { compareToWindow } from './lib/time';
+import type { CaptionTimeline, TimingGranularity, VerseTimelineEntry } from './lib/types/timeline';
 import { GRADIENT_PRESETS, drawBackground } from './render/background';
 import type { BgImage, GradientPreset } from './render/background';
 import { loadFonts } from './render/fonts';
 import type { FontSet } from './render/fonts';
-import { defaultBounds, drawTransformOverlay, renderFrame } from './render/renderFrame';
+import { defaultBounds, drawTransformOverlay, layoutUthmaniText, renderFrame } from './render/renderFrame';
 import type { SnapState, TextBounds } from './render/renderFrame';
 import CropModal from './components/CropModal';
 import type { CropAspect } from './components/CropModal';
@@ -216,24 +217,53 @@ export default function App() {
     };
   };
 
+  const measureTextBlock = (box: TextBounds): { width: number; height: number } | null => {
+    const ctx = ctxRef.current;
+    const tl = timelineRef.current;
+    if (!ctx || !tl) return null;
+    const t = playerRef.current?.timeSeconds() ?? 0;
+    let verse: VerseTimelineEntry | null = null;
+    for (const v of tl.verses) {
+      if (compareToWindow(t, v.startSeconds, v.endSeconds) === 0) {
+        verse = v;
+        break;
+      }
+    }
+    if (!verse) return null;
+    const info = layoutUthmaniText(ctx, verse, {
+      fonts: fontsRef.current,
+      boxW: box.width,
+      boxH: box.height,
+      align: 'center',
+      atMinFont: true,
+    });
+    return { width: info.width, height: info.height };
+  };
+
+  const RESIZE_CURSOR: Record<string, string> = {
+    tl: 'nwse-resize',
+    br: 'nwse-resize',
+    tr: 'nesw-resize',
+    bl: 'nesw-resize',
+    l: 'ew-resize',
+    r: 'ew-resize',
+    t: 'ns-resize',
+    b: 'ns-resize',
+  };
+
   const applyCursor = (clientX: number, clientY: number) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const d = dragRef.current;
     let cursor = 'default';
     if (d) {
-      cursor =
-        d.type === 'move'
-          ? 'grabbing'
-          : d.corner === 'tl' || d.corner === 'br'
-            ? 'nwse-resize'
-            : 'nesw-resize';
+      cursor = d.type === 'move' ? 'grabbing' : RESIZE_CURSOR[d.corner] ?? 'default';
     } else if (transformModeRef.current) {
       const p = toLogicalPoint(clientX, clientY);
       const b = boundsRef.current;
       const corner = hitBoxHandle(b, p);
       if (corner) {
-        cursor = corner === 'tl' || corner === 'br' ? 'nwse-resize' : 'nesw-resize';
+        cursor = RESIZE_CURSOR[corner] ?? 'default';
       } else if (p.x >= b.x && p.x <= b.x + b.width && p.y >= b.y && p.y <= b.y + b.height) {
         cursor = 'move';
       }
@@ -250,6 +280,15 @@ export default function App() {
       { id: 'br', x: b.x + b.width, y: b.y + b.height },
     ];
     for (const c of corners) {
+      if (Math.abs(p.x - c.x) <= h && Math.abs(p.y - c.y) <= h) return c.id;
+    }
+    const edges: { id: string; x: number; y: number }[] = [
+      { id: 'l', x: b.x, y: b.y + b.height / 2 },
+      { id: 'r', x: b.x + b.width, y: b.y + b.height / 2 },
+      { id: 't', x: b.x + b.width / 2, y: b.y },
+      { id: 'b', x: b.x + b.width / 2, y: b.y + b.height },
+    ];
+    for (const c of edges) {
       if (Math.abs(p.x - c.x) <= h && Math.abs(p.y - c.y) <= h) return c.id;
     }
     return null;
@@ -296,22 +335,23 @@ export default function App() {
       if (snapY) ny = H / 2 - nh / 2;
       snapRef.current = { x: snapX, y: snapY };
     } else {
-      let left = d.orig.x;
-      let top = d.orig.y;
-      let right = d.orig.x + d.orig.width;
-      let bottom = d.orig.y + d.orig.height;
-      if (d.corner.includes('l')) left = d.orig.x + dx;
-      if (d.corner.includes('r')) right = d.orig.x + dx;
-      if (d.corner.includes('t')) top = d.orig.y + dy;
-      if (d.corner.includes('b')) bottom = d.orig.y + dy;
-      if (d.corner.includes('l')) left = Math.min(Math.max(left, 0), right - MIN_BOX);
-      else right = Math.min(Math.max(right, left + MIN_BOX), W);
-      if (d.corner.includes('t')) top = Math.min(Math.max(top, 0), bottom - MIN_BOX);
-      else bottom = Math.min(Math.max(bottom, top + MIN_BOX), H);
-      nx = left;
-      ny = top;
-      nw = right - left;
-      nh = bottom - top;
+      const anchorX = d.corner.includes('l') ? d.orig.x + d.orig.width : d.orig.x;
+      const anchorY = d.corner.includes('t') ? d.orig.y + d.orig.height : d.orig.y;
+      const dirX = d.corner.includes('l') ? -1 : d.corner.includes('r') ? 1 : 0;
+      const dirY = d.corner.includes('t') ? -1 : d.corner.includes('b') ? 1 : 0;
+      const maxW = dirX === -1 ? anchorX : W - anchorX;
+      const maxH = dirY === -1 ? anchorY : H - anchorY;
+      nw = dirX === 0 ? d.orig.width : Math.min(Math.max(dirX * (p.x - anchorX), MIN_BOX), maxW);
+      nh = dirY === 0 ? d.orig.height : Math.min(Math.max(dirY * (p.y - anchorY), MIN_BOX), maxH);
+      const text = measureTextBlock({ x: 0, y: 0, width: nw, height: nh });
+      if (text) {
+        nw = Math.max(nw, Math.ceil(text.width));
+        nh = Math.max(nh, Math.ceil(text.height));
+      }
+      nw = Math.min(nw, maxW);
+      nh = Math.min(nh, maxH);
+      nx = dirX === -1 ? anchorX - nw : anchorX;
+      ny = dirY === -1 ? anchorY - nh : anchorY;
       snapRef.current = { x: false, y: false };
     }
     boundsRef.current = { x: nx, y: ny, width: nw, height: nh };
@@ -572,8 +612,8 @@ export default function App() {
         </label>
         {transformMode && (
           <div style={{ fontSize: 12, opacity: 0.75 }}>
-            Drag inside the box to move it, drag corner handles to resize. The box snaps to the
-            canvas center guides. Overlay is hidden during export.
+            Drag inside the box to move it · drag an edge handle to resize one dimension, or a corner
+            to resize both · the box never shrinks past its text. Overlay is hidden during export.
           </div>
         )}
 
@@ -615,6 +655,7 @@ export default function App() {
         <CropModal
           image={cropImage.img}
           defaultAspect={aspect as CropAspect}
+          onAspectChange={(a) => setAspect(a as Aspect)}
           onConfirm={handleCropConfirm}
           onCancel={handleCropCancel}
         />

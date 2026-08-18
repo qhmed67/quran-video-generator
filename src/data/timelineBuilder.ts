@@ -1,6 +1,7 @@
 import type { CaptionTimeline, WordSegmentSeconds } from '../lib/types/timeline';
 import { fetchQfTranslation, fetchQfUthmani } from './sources';
 import type { RawWordSegmentSeconds, TimelineRequest, TimingResolution } from './types';
+import { countArabicLetters, stripAyahOrnaments, stripQuranicMarks } from '../render/layout';
 
 export interface ValidationIssue {
   verseKey: string;
@@ -11,22 +12,25 @@ export function reconcileWords(
   verseText: string,
   raw: RawWordSegmentSeconds[],
 ): WordSegmentSeconds[] | null {
-  const words = verseText.split(' ').filter((w) => w.length > 0);
-  if (words.length === 0) return null;
-  const maxIndex = Math.max(...raw.map((r) => r.index));
-  if (maxIndex >= words.length) return null;
+  const words = stripAyahOrnaments(stripQuranicMarks(verseText))
+    .split(' ')
+    .map((w) => w.trim())
+    .filter((w) => w.length > 0 && countArabicLetters(w) > 0);
+  if (words.length === 0 || raw.length === 0) return null;
   const byIndex = new Map(raw.map((r) => [r.index, r]));
   const out: WordSegmentSeconds[] = [];
+  let timed = 0;
   for (let i = 0; i < words.length; i++) {
     const seg = byIndex.get(i);
-    if (!seg) return null;
+    if (seg && seg.endSeconds > seg.startSeconds) timed += 1;
     out.push({
       index: i,
       text: words[i],
-      startSeconds: seg.startSeconds,
-      endSeconds: seg.endSeconds,
+      startSeconds: seg?.startSeconds ?? 0,
+      endSeconds: seg?.endSeconds ?? 0,
     });
   }
+  if (timed === 0) return null;
   return out;
 }
 

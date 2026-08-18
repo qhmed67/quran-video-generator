@@ -1,8 +1,17 @@
 import { compareToWindow } from '../lib/time';
 import type { CaptionTimeline, VerseTimelineEntry, WordSegmentSeconds } from '../lib/types/timeline';
 import type { FontSet } from './fonts';
-import { autoFitFontSize, ornateAyahMarker, stripAyahOrnaments } from './layout';
-import type { HorizontalAlign } from './layout';
+import {
+  countArabicLetters,
+  displayWordText,
+  isStandaloneToken,
+  layoutTextBlock,
+  rowHeightFor,
+  toArabicIndicDigits,
+  stripAyahOrnaments,
+  stripQuranicMarks,
+} from './layout';
+import type { HorizontalAlign, RowLayout, WordDef } from './layout';
 
 export type HighlightMode = 'word' | 'verse';
 
@@ -30,8 +39,11 @@ export interface FrameRenderOptions {
   drawBackground?: (ctx: CanvasRenderingContext2D, tSeconds: number) => void;
 }
 
-const INACTIVE_WORD_ALPHA = 0.55;
-const MARKER_COLOR = '#ffd76b';
+const GLOW_COLOR = 'rgba(255, 205, 110, 0.95)';
+const AYAH_NUM_COLOR = 'rgba(255, 215, 100, 1)';
+const IDLE_OPACITY = 0.35;
+const GLOW_BLUR_RATIO = 0.012;
+const VERTICAL_SAFETY_PAD = 12;
 
 export function defaultBounds(width: number, height: number): TextBounds {
   return {
@@ -61,12 +73,59 @@ function verseOpacity(verse: VerseTimelineEntry, t: number, fadeIn: number, fade
   return 1;
 }
 
-function activeWord(verse: VerseTimelineEntry, t: number): WordSegmentSeconds | null {
+interface ActiveWordGlow {
+  word: WordSegmentSeconds;
+  intensity: number;
+  textOpacity: number;
+}
+
+function easeInOut(t: number): number {
+  return -(Math.cos(Math.PI * t) - 1) / 2;
+}
+
+function activeWordGlow(verse: VerseTimelineEntry, t: number): ActiveWordGlow | null {
   if (!verse.words) return null;
-  for (const w of verse.words) {
-    if (compareToWindow(t, w.startSeconds, w.endSeconds) === 0) return w;
+  const ws = verse.words;
+  let active = -1;
+  for (let i = 0; i < ws.length; i++) {
+    const w = ws[i];
+    if (w.endSeconds > w.startSeconds && t >= w.startSeconds && t < w.endSeconds) {
+      active = i;
+      break;
+    }
   }
-  return null;
+  if (active === -1) return null;
+  const mergedStart = ws[active].startSeconds;
+  let target = active;
+  while (target < ws.length - 1 && isStandaloneToken(ws[target].text)) target += 1;
+  const tw = ws[target];
+  if (isStandaloneToken(tw.text)) return null;
+  if (!(tw.endSeconds > tw.startSeconds)) return null;
+  const windowStart = Math.min(mergedStart, tw.startSeconds);
+  const windowEnd = tw.endSeconds;
+  if (t < windowStart || t >= windowEnd) return null;
+  const dur = windowEnd - windowStart;
+  if (dur <= 0) return null;
+
+  const progress = (t - windowStart) / dur;
+  let intensity: number;
+  let textOpacity: number;
+
+  if (progress < 0.2) {
+    const p = easeInOut(progress / 0.2);
+    intensity = p;
+    textOpacity = IDLE_OPACITY + (1 - IDLE_OPACITY) * p;
+  } else if (progress < 0.9) {
+    intensity = 1;
+    textOpacity = 1;
+  } else {
+    const p = easeInOut((1 - progress) / 0.1);
+    intensity = p;
+    textOpacity = IDLE_OPACITY + (1 - IDLE_OPACITY) * p;
+  }
+
+  if (intensity <= 0) return null;
+  return { word: tw, intensity, textOpacity };
 }
 
 interface UthmaniBlock {
@@ -94,6 +153,91 @@ function drawScrim(
   ctx.restore();
 }
 
+export interface UthmaniTextMeasure {
+  width: number;
+  height: number;
+  fits: boolean;
+  fontSize: number;
+}
+
+interface UthmaniLayout extends UthmaniTextMeasure {
+  rows: RowLayout[];
+  blockTopRel: number;
+}
+
+function buildUthmaniLayout(
+  ctx: CanvasRenderingContext2D,
+  verse: VerseTimelineEntry,
+  opts: { fonts: FontSet; boxW: number; boxH: number; align: HorizontalAlign; atMinFont?: boolean },
+): UthmaniLayout {
+  const { fonts, boxW, boxH, align, atMinFont } = opts;
+  const displayWords: WordDef[] = verse.words
+    ? verse.words
+        .map((w) => ({ index: w.index, text: displayWordText(w.text).trim() }))
+        .filter((w) => w.text.length > 0 && countArabicLetters(w.text) > 0)
+    : (() => {
+        const raw = stripAyahOrnaments(stripQuranicMarks(verse.uthmani)).trim();
+        const parts = raw.length ? raw.split(/\s+/) : [];
+        const kept: WordDef[] = [];
+        for (const part of parts) {
+          const text = displayWordText(part).trim();
+          if (text.length > 0 && countArabicLetters(text) > 0) {
+            kept.push({ index: kept.length, text });
+          }
+        }
+        return kept;
+      })();
+
+  if (displayWords.length > 0) {
+    const last = displayWords[displayWords.length - 1];
+    last.text = last.text + ' ' + toArabicIndicDigits(verse.ayahNumber);
+  }
+
+  const rowGap = Math.round(boxH * 0.02);
+  const marginX = Math.round(boxW * 0.04);
+  const initialFont = Math.round(boxH * 0.17);
+  const minFont = Math.max(8, Math.round(boxH * 0.05));
+
+  const fitted = layoutTextBlock({
+    ctx,
+    words: displayWords,
+    rowWidth: boxW,
+    boxH,
+    marginX,
+    startY: 0,
+    rowGap,
+    initialFontSize: atMinFont ? minFont : initialFont,
+    minFontSize: minFont,
+    fixedFont: atMinFont ? true : undefined,
+    align,
+    fontFamily: fonts.uthmani,
+  });
+
+  const rowCount = fitted.rows.length;
+  const fittedRowHeight = rowHeightFor(fitted.fontSize);
+  const blockHeight = rowCount * fittedRowHeight + Math.max(0, rowCount - 1) * rowGap;
+  const availableHeight = boxH - 2 * VERTICAL_SAFETY_PAD;
+  const blockTopRel = VERTICAL_SAFETY_PAD + (availableHeight - blockHeight) / 2;
+
+  return {
+    rows: fitted.rows,
+    fontSize: fitted.fontSize,
+    fits: fitted.fits,
+    width: fitted.blockWidth,
+    height: blockHeight,
+    blockTopRel,
+  };
+}
+
+export function layoutUthmaniText(
+  ctx: CanvasRenderingContext2D,
+  verse: VerseTimelineEntry,
+  opts: { fonts: FontSet; boxW: number; boxH: number; align: HorizontalAlign; atMinFont?: boolean },
+): UthmaniTextMeasure {
+  const layout = buildUthmaniLayout(ctx, verse, opts);
+  return { width: layout.width, height: layout.height, fits: layout.fits, fontSize: layout.fontSize };
+}
+
 function drawUthmaniVerse(
   ctx: CanvasRenderingContext2D,
   verse: VerseTimelineEntry,
@@ -109,113 +253,94 @@ function drawUthmaniVerse(
   },
 ): UthmaniBlock {
   const { height, fonts, bounds, align, scrimEnabled, wordHighlightEnabled } = opts;
-  const canvasW = ctx.canvas.width;
-  const canvasH = ctx.canvas.height;
   const boxX = bounds.x;
   const boxY = bounds.y;
   const boxW = bounds.width;
   const boxH = bounds.height;
-  const minFont = Math.round(boxH * 0.07);
-  const highlight = wordHighlightEnabled ? activeWord(verse, opts.t) : null;
-
-  const displayWords = verse.words
-    ? [
-        ...verse.words
-          .map((w) => ({ index: w.index, text: stripAyahOrnaments(w.text).trim() }))
-          .filter((w) => w.text.length > 0),
-        { index: -1, text: ornateAyahMarker(verse.ayahNumber) },
-      ]
-    : (() => {
-        const raw = stripAyahOrnaments(verse.uthmani).trim();
-        const parts = raw.length ? raw.split(/\s+/) : [];
-        return [
-          ...parts.map((text, i) => ({ index: i, text })),
-          { index: -1, text: ornateAyahMarker(verse.ayahNumber) },
-        ];
-      })();
-
-  const geometryFor = (w: number, h: number, minFontSize: number) => {
-    const rowHeight = Math.round(h * 0.16);
-    const rowGap = Math.round(h * 0.02);
-    const maxRows = Math.max(1, Math.floor((h - rowGap) / (rowHeight + rowGap)));
-    const fitted = autoFitFontSize({
-      ctx,
-      words: displayWords,
-      rowWidth: w,
-      rowHeight,
-      maxRows,
-      marginX: Math.round(w * 0.02),
-      startY: 0,
-      rowGap,
-      initialFontSize: Math.round(h * 0.17),
-      minFontSize,
-      align,
-      fontFamily: fonts.uthmani,
-    });
-    return { rowHeight, rowGap, fitted };
-  };
-
-  let box = { w: boxW, h: boxH };
-  let origin = { x: boxX, y: boxY };
-  let g = geometryFor(box.w, box.h, minFont);
-  if (!g.fitted.fits) {
-    box = { w: canvasW, h: canvasH };
-    origin = { x: 0, y: 0 };
-    g = geometryFor(box.w, box.h, Math.max(8, minFont));
-  }
-
-  const rowCount = g.fitted.layout.rows.length;
-  const blockHeight = rowCount * g.rowHeight + (rowCount - 1) * g.rowGap;
-  const blockTopRel = (box.h - blockHeight) / 2;
+  const layout = buildUthmaniLayout(ctx, verse, { fonts, boxW, boxH, align });
+  const { rows, fontSize, blockTopRel } = layout;
+  const rowCount = rows.length;
+  const blockHeight = layout.height;
+  const highlight = wordHighlightEnabled ? activeWordGlow(verse, opts.t) : null;
+  const baseShadowBlur = Math.round(height * 0.008);
 
   ctx.save();
-  ctx.translate(origin.x, origin.y);
+  ctx.translate(boxX, boxY);
+  ctx.beginPath();
+  ctx.rect(0, -VERTICAL_SAFETY_PAD, boxW, boxH + 2 * VERTICAL_SAFETY_PAD);
+  ctx.clip();
   if (scrimEnabled && rowCount > 0) {
-    drawScrim(ctx, { top: blockTopRel, bottom: blockTopRel + blockHeight }, box.w, box.h);
+    drawScrim(ctx, { top: blockTopRel - VERTICAL_SAFETY_PAD, bottom: blockTopRel + blockHeight + VERTICAL_SAFETY_PAD }, boxW, boxH);
   }
   ctx.fillStyle = '#ffffff';
   ctx.shadowColor = 'rgba(0, 0, 0, 0.75)';
-  ctx.shadowBlur = Math.round(height * 0.008);
+  ctx.shadowBlur = baseShadowBlur;
   ctx.shadowOffsetY = Math.round(height * 0.002);
   ctx.textAlign = 'right';
   ctx.textBaseline = 'alphabetic';
   ctx.direction = 'rtl';
-  ctx.font = `400 ${g.fitted.fontSize}px ${fonts.uthmani}`;
+  ctx.font = `400 ${fontSize}px ${fonts.uthmani}`;
 
-  for (const row of g.fitted.layout.rows) {
+  const lastWordIdx = rows.length > 0 && rows[rows.length - 1].words.length > 0
+    ? rows[rows.length - 1].words[rows[rows.length - 1].words.length - 1].index
+    : -1;
+
+  const maxGlowBlur = Math.round(height * GLOW_BLUR_RATIO);
+
+  for (const row of rows) {
     for (const wl of row.words) {
-      if (wl.index === -1) {
-        ctx.globalAlpha = opts.opacity;
-        ctx.fillStyle = MARKER_COLOR;
-      } else if (verse.words && wordHighlightEnabled) {
-        if (highlight && wl.index === highlight.index) {
-          ctx.globalAlpha = opts.opacity;
-          const rect = {
-            x: wl.x - wl.width - height * 0.004,
-            y: blockTopRel + row.y - g.fitted.fontSize * 0.95,
-            width: wl.width + height * 0.008,
-            height: g.fitted.fontSize * 1.15,
-          };
-          ctx.fillStyle = 'rgba(255, 215, 0, 0.35)';
-          ctx.fillRect(rect.x, rect.y, rect.width, rect.height);
+      if (verse.words && wordHighlightEnabled) {
+        const glow = highlight && wl.index === highlight.word.index ? highlight : null;
+        if (glow) {
+          ctx.globalAlpha = opts.opacity * glow.textOpacity;
+          ctx.shadowColor = GLOW_COLOR;
+          ctx.shadowBlur = Math.round(baseShadowBlur + (maxGlowBlur - baseShadowBlur) * glow.intensity);
           ctx.fillStyle = '#ffffff';
         } else {
-          ctx.globalAlpha = opts.opacity * INACTIVE_WORD_ALPHA;
+          ctx.globalAlpha = opts.opacity * IDLE_OPACITY;
+          ctx.shadowColor = 'rgba(0, 0, 0, 0.75)';
+          ctx.shadowBlur = baseShadowBlur;
           ctx.fillStyle = '#ffffff';
         }
       } else {
         ctx.globalAlpha = opts.opacity;
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.75)';
+        ctx.shadowBlur = baseShadowBlur;
         ctx.fillStyle = '#ffffff';
       }
-      ctx.fillText(wl.text, wl.x, blockTopRel + row.y);
+
+      if (wl.index === lastWordIdx) {
+        const spaceIdx = wl.text.lastIndexOf(' ');
+        if (spaceIdx !== -1) {
+          const wordPart = wl.text.substring(0, spaceIdx);
+          const numPart = wl.text.substring(spaceIdx + 1);
+          ctx.fillText(wordPart, wl.x, blockTopRel + row.y);
+          const wordWidth = ctx.measureText(wordPart).width;
+          const spaceWidth = ctx.measureText(' ').width;
+          const prevFill = ctx.fillStyle;
+          const prevShadow = ctx.shadowColor;
+          const prevBlur = ctx.shadowBlur;
+          ctx.fillStyle = AYAH_NUM_COLOR;
+          ctx.shadowColor = 'rgba(0, 0, 0, 0.75)';
+          ctx.shadowBlur = baseShadowBlur;
+          ctx.fillText(numPart, wl.x - wordWidth - spaceWidth, blockTopRel + row.y);
+          ctx.fillStyle = prevFill;
+          ctx.shadowColor = prevShadow;
+          ctx.shadowBlur = prevBlur;
+        } else {
+          ctx.fillText(wl.text, wl.x, blockTopRel + row.y);
+        }
+      } else {
+        ctx.fillText(wl.text, wl.x, blockTopRel + row.y);
+      }
       ctx.globalAlpha = opts.opacity;
     }
   }
   ctx.restore();
 
   return {
-    top: origin.y + blockTopRel,
-    bottom: origin.y + blockTopRel + blockHeight,
+    top: boxY + blockTopRel,
+    bottom: boxY + blockTopRel + blockHeight,
   };
 }
 
@@ -301,6 +426,21 @@ export function drawTransformOverlay(
     ctx.arc(cx, cy, Math.max(2.5, Math.round(hr * 0.32)), 0, Math.PI * 2);
     ctx.fillStyle = 'rgba(59, 130, 246, 1)';
     ctx.fill();
+  }
+
+  const edgeHandles: [number, number][] = [
+    [bounds.x + bounds.width / 2, bounds.y],
+    [bounds.x + bounds.width / 2, bounds.y + bounds.height],
+    [bounds.x, bounds.y + bounds.height / 2],
+    [bounds.x + bounds.width, bounds.y + bounds.height / 2],
+  ];
+  const eh = Math.max(4, Math.round(hr * 0.4));
+  ctx.lineWidth = 2;
+  for (const [ex, ey] of edgeHandles) {
+    ctx.fillStyle = '#ffffff';
+    ctx.strokeStyle = 'rgba(59, 130, 246, 1)';
+    ctx.fillRect(ex - eh, ey - eh, eh * 2, eh * 2);
+    ctx.strokeRect(ex - eh, ey - eh, eh * 2, eh * 2);
   }
   ctx.restore();
 }

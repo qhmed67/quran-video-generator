@@ -35,13 +35,14 @@ function clamp(v: number, lo: number, hi: number): number {
 interface Props {
   image: HTMLImageElement;
   defaultAspect: CropAspect;
+  onAspectChange?: (a: CropAspect) => void;
   onConfirm: (canvas: HTMLCanvasElement) => void;
   onCancel: () => void;
 }
 
 const HANDLE_PX = 16;
 
-export default function CropModal({ image, defaultAspect, onConfirm, onCancel }: Props) {
+export default function CropModal({ image, defaultAspect, onAspectChange, onConfirm, onCancel }: Props) {
   const [aspect, setAspect] = useState<CropAspect>(defaultAspect);
   const [crop, setCrop] = useState<CropRect>(() =>
     initCrop(image.naturalWidth, image.naturalHeight, defaultAspect),
@@ -49,6 +50,12 @@ export default function CropModal({ image, defaultAspect, onConfirm, onCancel }:
   const [view, setView] = useState({ dx: 0, dy: 0, dw: 0, dh: 0, scale: 1 });
   const containerRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<{ mode: 'move' | 'resize'; corner: string; startX: number; startY: number; orig: CropRect } | null>(null);
+
+  useEffect(() => {
+    if (defaultAspect === aspect) return;
+    setAspect(defaultAspect);
+    setCrop(initCrop(image.naturalWidth, image.naturalHeight, defaultAspect));
+  }, [defaultAspect, aspect, image]);
 
   const updateView = useCallback(() => {
     const el = containerRef.current;
@@ -157,6 +164,7 @@ export default function CropModal({ image, defaultAspect, onConfirm, onCancel }:
   const switchAspect = (a: CropAspect) => {
     setAspect(a);
     setCrop(initCrop(image.naturalWidth, image.naturalHeight, a));
+    onAspectChange?.(a);
   };
 
   const confirm = () => {
