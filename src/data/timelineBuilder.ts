@@ -1,6 +1,7 @@
 import type { CaptionTimeline, WordSegmentSeconds } from '../lib/types/timeline';
 import { fetchQfTranslation, fetchQfUthmani } from './sources';
 import type { RawWordSegmentSeconds, TimelineRequest, TimingResolution } from './types';
+import { countArabicLetters, stripAyahOrnaments, stripQuranicMarks } from '../render/layout';
 
 export interface ValidationIssue {
   verseKey: string;
@@ -11,7 +12,10 @@ export function reconcileWords(
   verseText: string,
   raw: RawWordSegmentSeconds[],
 ): WordSegmentSeconds[] | null {
-  const words = verseText.split(' ').filter((w) => w.length > 0);
+  const words = stripAyahOrnaments(stripQuranicMarks(verseText))
+    .split(' ')
+    .map((w) => w.trim())
+    .filter((w) => w.length > 0 && countArabicLetters(w) > 0);
   if (words.length === 0 || raw.length === 0) return null;
   const byIndex = new Map(raw.map((r) => [r.index, r]));
   const out: WordSegmentSeconds[] = [];

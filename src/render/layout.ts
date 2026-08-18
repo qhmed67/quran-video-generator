@@ -10,6 +10,29 @@ export function stripAyahOrnaments(text: string): string {
   return text.replace(/[\uFD3E\uFD3F\u06DD]/g, '');
 }
 
+const ORNAMENT_OR_BRACKET_RE = /[\uFD3E\uFD3F\u06D6-\u06ED]/g;
+const HARKAT_RE = /[\u064B-\u0655\u0670\u0640]/g;
+const ARABIC_LETTER_RE =
+  /[\u0621-\u063A\u0641-\u064A\u0671\u0675\u06C0-\u06D3\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDCF\uFDF0-\uFDFF\uFE70-\uFEFF]/g;
+
+export function stripQuranicMarks(text: string): string {
+  return text.replace(/[\u06D6-\u06ED]/g, '');
+}
+
+export function displayWordText(text: string): string {
+  return text.replace(ORNAMENT_OR_BRACKET_RE, '');
+}
+
+export function countArabicLetters(text: string): number {
+  const cleaned = text.replace(HARKAT_RE, '').replace(/[\u06D6-\u06ED]/g, '');
+  const matches = cleaned.match(ARABIC_LETTER_RE);
+  return matches ? matches.length : 0;
+}
+
+export function isStandaloneToken(text: string): boolean {
+  return countArabicLetters(text) <= 1;
+}
+
 export function ornateAyahMarker(ayahNumber: number): string {
   return `\u06DD${toArabicIndicDigits(ayahNumber)}`;
 }
@@ -60,7 +83,7 @@ export function layoutRtlRows(opts: {
   ctx.font = `400 ${fontSize}px ${fontFamily}`;
   const gap = fontSize * WORD_GAP_RATIO;
   const avail = rowWidth - 2 * marginX;
-  const widths = words.map((w) => ctx.measureText(stripAyahOrnaments(w.text)).width);
+  const widths = words.map((w) => ctx.measureText(w.text).width);
 
   const buckets: number[][] = [];
   let acc = 0;
@@ -138,7 +161,7 @@ export function layoutTextBlock(opts: {
   const runAt = (fontSize: number): TextBlockLayout => {
     const layout = layoutRtlRows({ ...opts, fontSize });
     const widest = opts.words.length
-      ? Math.max(...opts.words.map((w) => opts.ctx.measureText(stripAyahOrnaments(w.text)).width))
+      ? Math.max(...opts.words.map((w) => opts.ctx.measureText(w.text).width))
       : 0;
     const fits = !layout.overflow && widest <= avail;
     const rowCount = layout.rows.length;

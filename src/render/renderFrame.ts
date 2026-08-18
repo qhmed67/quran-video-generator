@@ -1,7 +1,15 @@
 import { compareToWindow } from '../lib/time';
 import type { CaptionTimeline, VerseTimelineEntry, WordSegmentSeconds } from '../lib/types/timeline';
 import type { FontSet } from './fonts';
-import { layoutTextBlock, ornateAyahMarker, stripAyahOrnaments } from './layout';
+import {
+  countArabicLetters,
+  displayWordText,
+  isStandaloneToken,
+  layoutTextBlock,
+  ornateAyahMarker,
+  stripAyahOrnaments,
+  stripQuranicMarks,
+} from './layout';
 import type { HorizontalAlign, RowLayout, WordDef } from './layout';
 
 export type HighlightMode = 'word' | 'verse';
@@ -71,15 +79,30 @@ interface ActiveWordGlow {
 
 function activeWordGlow(verse: VerseTimelineEntry, t: number): ActiveWordGlow | null {
   if (!verse.words) return null;
-  for (const w of verse.words) {
+  const ws = verse.words;
+  let active = -1;
+  for (let i = 0; i < ws.length; i++) {
+    const w = ws[i];
     if (w.endSeconds > w.startSeconds && t >= w.startSeconds && t <= w.endSeconds) {
-      const dur = w.endSeconds - w.startSeconds;
-      const fIn = Math.min(1, (t - w.startSeconds) / (dur * WORD_RAMP));
-      const fOut = Math.min(1, (w.endSeconds - t) / (dur * WORD_RAMP));
-      return { word: w, intensity: Math.max(0, Math.min(fIn, fOut)) };
+      active = i;
+      break;
     }
   }
-  return null;
+  if (active === -1) return null;
+  const mergedStart = ws[active].startSeconds;
+  let target = active;
+  while (target < ws.length - 1 && isStandaloneToken(ws[target].text)) target += 1;
+  const tw = ws[target];
+  if (isStandaloneToken(tw.text)) return null;
+  if (!(tw.endSeconds > tw.startSeconds)) return null;
+  const windowStart = Math.min(mergedStart, tw.startSeconds);
+  const windowEnd = tw.endSeconds;
+  if (t < windowStart || t > windowEnd) return null;
+  const dur = windowEnd - windowStart;
+  if (dur <= 0) return null;
+  const fIn = Math.min(1, (t - windowStart) / (dur * WORD_RAMP));
+  const fOut = Math.min(1, (windowEnd - t) / (dur * WORD_RAMP));
+  return { word: tw, intensity: Math.max(0, Math.min(fIn, fOut)) };
 }
 
 interface UthmaniBlock {
@@ -128,17 +151,21 @@ function buildUthmaniLayout(
   const displayWords: WordDef[] = verse.words
     ? [
         ...verse.words
-          .map((w) => ({ index: w.index, text: stripAyahOrnaments(w.text).trim() }))
-          .filter((w) => w.text.length > 0),
+          .map((w) => ({ index: w.index, text: displayWordText(w.text).trim() }))
+          .filter((w) => w.text.length > 0 && countArabicLetters(w.text) > 0),
         { index: -1, text: ornateAyahMarker(verse.ayahNumber) },
       ]
     : (() => {
-        const raw = stripAyahOrnaments(verse.uthmani).trim();
+        const raw = stripAyahOrnaments(stripQuranicMarks(verse.uthmani)).trim();
         const parts = raw.length ? raw.split(/\s+/) : [];
-        return [
-          ...parts.map((text, i) => ({ index: i, text })),
-          { index: -1, text: ornateAyahMarker(verse.ayahNumber) },
-        ];
+        const kept: WordDef[] = [];
+        for (const part of parts) {
+          const text = displayWordText(part).trim();
+          if (text.length > 0 && countArabicLetters(text) > 0) {
+            kept.push({ index: kept.length, text });
+          }
+        }
+        return [...kept, { index: -1, text: ornateAyahMarker(verse.ayahNumber) }];
       })();
 
   const rowHeight = Math.round(boxH * 0.16);
