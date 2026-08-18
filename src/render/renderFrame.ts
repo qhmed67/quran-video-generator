@@ -6,6 +6,7 @@ import {
   displayWordText,
   isStandaloneToken,
   layoutTextBlock,
+  rowHeightFor,
   toArabicIndicDigits,
   stripAyahOrnaments,
   stripQuranicMarks,
@@ -42,6 +43,7 @@ const GLOW_COLOR = 'rgba(255, 205, 110, 0.95)';
 const AYAH_NUM_COLOR = 'rgba(255, 215, 100, 1)';
 const IDLE_OPACITY = 0.35;
 const GLOW_BLUR_RATIO = 0.012;
+const VERTICAL_SAFETY_PAD = 12;
 
 export function defaultBounds(width: number, height: number): TextBounds {
   return {
@@ -191,10 +193,8 @@ function buildUthmaniLayout(
     last.text = last.text + ' ' + toArabicIndicDigits(verse.ayahNumber);
   }
 
-  const rowHeight = Math.round(boxH * 0.16);
   const rowGap = Math.round(boxH * 0.02);
-  const maxRows = Math.max(1, Math.floor((boxH - rowGap) / (rowHeight + rowGap)));
-  const marginX = Math.round(boxW * 0.02);
+  const marginX = Math.round(boxW * 0.04);
   const initialFont = Math.round(boxH * 0.17);
   const minFont = Math.max(8, Math.round(boxH * 0.05));
 
@@ -202,8 +202,7 @@ function buildUthmaniLayout(
     ctx,
     words: displayWords,
     rowWidth: boxW,
-    rowHeight,
-    maxRows,
+    boxH,
     marginX,
     startY: 0,
     rowGap,
@@ -215,8 +214,10 @@ function buildUthmaniLayout(
   });
 
   const rowCount = fitted.rows.length;
-  const blockHeight = rowCount * rowHeight + Math.max(0, rowCount - 1) * rowGap;
-  const blockTopRel = (boxH - blockHeight) / 2;
+  const fittedRowHeight = rowHeightFor(fitted.fontSize);
+  const blockHeight = rowCount * fittedRowHeight + Math.max(0, rowCount - 1) * rowGap;
+  const availableHeight = boxH - 2 * VERTICAL_SAFETY_PAD;
+  const blockTopRel = VERTICAL_SAFETY_PAD + (availableHeight - blockHeight) / 2;
 
   return {
     rows: fitted.rows,
@@ -266,10 +267,10 @@ function drawUthmaniVerse(
   ctx.save();
   ctx.translate(boxX, boxY);
   ctx.beginPath();
-  ctx.rect(0, 0, boxW, boxH);
+  ctx.rect(0, -VERTICAL_SAFETY_PAD, boxW, boxH + 2 * VERTICAL_SAFETY_PAD);
   ctx.clip();
   if (scrimEnabled && rowCount > 0) {
-    drawScrim(ctx, { top: blockTopRel, bottom: blockTopRel + blockHeight }, boxW, boxH);
+    drawScrim(ctx, { top: blockTopRel - VERTICAL_SAFETY_PAD, bottom: blockTopRel + blockHeight + VERTICAL_SAFETY_PAD }, boxW, boxH);
   }
   ctx.fillStyle = '#ffffff';
   ctx.shadowColor = 'rgba(0, 0, 0, 0.75)';
