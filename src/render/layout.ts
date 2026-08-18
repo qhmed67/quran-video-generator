@@ -83,7 +83,9 @@ export function layoutRtlRows(opts: {
   ctx.font = `400 ${fontSize}px ${fontFamily}`;
   const gap = fontSize * WORD_GAP_RATIO;
   const avail = rowWidth - 2 * marginX;
-  const widths = words.map((w) => ctx.measureText(w.text).width);
+  const widths = words.map((w) =>
+    w.index === -1 ? ctx.measureText(AYAH_END_MARKER).width : ctx.measureText(w.text).width,
+  );
 
   const buckets: number[][] = [];
   let acc = 0;
