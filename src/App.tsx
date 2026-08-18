@@ -12,7 +12,7 @@ import type { BgImage, GradientPreset } from './render/background';
 import { loadFonts } from './render/fonts';
 import type { FontSet } from './render/fonts';
 import { defaultBounds, drawTransformOverlay, layoutUthmaniText, renderFrame } from './render/renderFrame';
-import type { SnapState, TextBounds } from './render/renderFrame';
+import type { HslColor, SnapState, TextBounds } from './render/renderFrame';
 import CropModal from './components/CropModal';
 import type { CropAspect } from './components/CropModal';
 
@@ -57,6 +57,10 @@ export default function App() {
   const [wordHighlightEnabled, setWordHighlightEnabled] = useState(false);
   const [transformMode, setTransformMode] = useState(false);
   const [cropImage, setCropImage] = useState<{ url: string; img: HTMLImageElement } | null>(null);
+  const [maxWordsPerScreen, setMaxWordsPerScreen] = useState(0);
+  const [textColor, setTextColor] = useState<HslColor>({ h: 0, s: 0, l: 100 });
+  const [glowColor, setGlowColor] = useState<HslColor>({ h: 38, s: 100, l: 70 });
+  const [textOpacity, setTextOpacity] = useState(1);
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const ctxRef = useRef<CanvasRenderingContext2D | null>(null);
@@ -80,6 +84,10 @@ export default function App() {
   const wordHighlightRef = useRef(false);
   const transformModeRef = useRef(false);
   const isExportingRef = useRef(false);
+  const maxWordsRef = useRef(0);
+  const textColorRef = useRef<HslColor>({ h: 0, s: 0, l: 100 });
+  const glowColorRef = useRef<HslColor>({ h: 38, s: 100, l: 70 });
+  const textOpacityRef = useRef(1);
 
   captionsRef.current = { uthmani: true, translation: translationEnabled };
   bgPresetRef.current = GRADIENT_PRESETS.find((p) => p.id === bgId) ?? GRADIENT_PRESETS[0];
@@ -87,6 +95,10 @@ export default function App() {
   wordHighlightRef.current = wordHighlightEnabled;
   transformModeRef.current = transformMode;
   isExportingRef.current = isExporting;
+  maxWordsRef.current = maxWordsPerScreen;
+  textColorRef.current = textColor;
+  glowColorRef.current = glowColor;
+  textOpacityRef.current = textOpacity;
 
   const size = ASPECTS[aspect];
 
@@ -193,6 +205,10 @@ export default function App() {
           bounds: boundsRef.current,
           scrimEnabled: scrimRef.current,
           wordHighlightEnabled: wordHighlightRef.current,
+          maxWordsPerScreen: maxWordsRef.current,
+          textColor: textColorRef.current,
+          glowColor: glowColorRef.current,
+          textOpacity: textOpacityRef.current,
           drawBackground: (c) => drawBackground(c, bgPresetRef.current, bgImageRef.current),
         });
       } else {
@@ -600,6 +616,62 @@ export default function App() {
             onChange={(e) => setWordHighlightEnabled(e.target.checked)}
           />
           Word-by-word highlight
+        </label>
+
+        <label>
+          Max words per screen (0 = disabled)
+          <input
+            type="number"
+            min={0}
+            max={50}
+            value={maxWordsPerScreen}
+            onChange={(e) => setMaxWordsPerScreen(Math.max(0, Number(e.target.value)))}
+            style={inputStyle}
+          />
+        </label>
+
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <div style={{ width: 24, height: 24, borderRadius: 4, background: `hsl(${textColor.h}, ${textColor.s}%, ${textColor.l}%)`, border: '1px solid #30363d', flexShrink: 0 }} />
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <label style={{ fontSize: 11, opacity: 0.7 }}>Text H: {textColor.h}</label>
+            <input type="range" min={0} max={360} value={textColor.h} onChange={(e) => setTextColor((c) => ({ ...c, h: Number(e.target.value) }))} style={{ width: '100%' }} />
+          </div>
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <label style={{ fontSize: 11, opacity: 0.7 }}>S: {textColor.s}%</label>
+            <input type="range" min={0} max={100} value={textColor.s} onChange={(e) => setTextColor((c) => ({ ...c, s: Number(e.target.value) }))} style={{ width: '100%' }} />
+          </div>
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <label style={{ fontSize: 11, opacity: 0.7 }}>L: {textColor.l}%</label>
+            <input type="range" min={0} max={100} value={textColor.l} onChange={(e) => setTextColor((c) => ({ ...c, l: Number(e.target.value) }))} style={{ width: '100%' }} />
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <div style={{ width: 24, height: 24, borderRadius: 4, background: `hsl(${glowColor.h}, ${glowColor.s}%, ${glowColor.l}%)`, border: '1px solid #30363d', flexShrink: 0 }} />
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <label style={{ fontSize: 11, opacity: 0.7 }}>Glow H: {glowColor.h}</label>
+            <input type="range" min={0} max={360} value={glowColor.h} onChange={(e) => setGlowColor((c) => ({ ...c, h: Number(e.target.value) }))} style={{ width: '100%' }} />
+          </div>
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <label style={{ fontSize: 11, opacity: 0.7 }}>S: {glowColor.s}%</label>
+            <input type="range" min={0} max={100} value={glowColor.s} onChange={(e) => setGlowColor((c) => ({ ...c, s: Number(e.target.value) }))} style={{ width: '100%' }} />
+          </div>
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <label style={{ fontSize: 11, opacity: 0.7 }}>L: {glowColor.l}%</label>
+            <input type="range" min={0} max={100} value={glowColor.l} onChange={(e) => setGlowColor((c) => ({ ...c, l: Number(e.target.value) }))} style={{ width: '100%' }} />
+          </div>
+        </div>
+
+        <label>
+          Text opacity: {Math.round(textOpacity * 100)}%
+          <input
+            type="range"
+            min={0}
+            max={100}
+            value={Math.round(textOpacity * 100)}
+            onChange={(e) => setTextOpacity(Number(e.target.value) / 100)}
+            style={{ ...inputStyle, padding: '6px 0' }}
+          />
         </label>
 
         <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>

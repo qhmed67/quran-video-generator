@@ -27,6 +27,12 @@ export interface SnapState {
   y: boolean;
 }
 
+export interface HslColor {
+  h: number;
+  s: number;
+  l: number;
+}
+
 export interface FrameRenderOptions {
   tSeconds: number;
   timeline: CaptionTimeline;
@@ -36,14 +42,25 @@ export interface FrameRenderOptions {
   bounds?: TextBounds;
   scrimEnabled?: boolean;
   wordHighlightEnabled?: boolean;
+  maxWordsPerScreen?: number;
+  textColor?: HslColor;
+  glowColor?: HslColor;
+  textOpacity?: number;
   drawBackground?: (ctx: CanvasRenderingContext2D, tSeconds: number) => void;
 }
 
-const GLOW_COLOR = 'rgba(255, 205, 110, 0.95)';
+const DEFAULT_TEXT_COLOR: HslColor = { h: 0, s: 0, l: 100 };
+const DEFAULT_GLOW_COLOR: HslColor = { h: 38, s: 100, l: 70 };
+const DEFAULT_TEXT_OPACITY = 1;
 const AYAH_NUM_COLOR = 'rgba(255, 215, 100, 1)';
 const IDLE_OPACITY = 0.35;
 const GLOW_BLUR_RATIO = 0.012;
 const VERTICAL_SAFETY_PAD = 12;
+
+function hslToCSS(c: HslColor, alpha?: number): string {
+  if (alpha !== undefined) return `hsla(${c.h}, ${c.s}%, ${c.l}%, ${alpha})`;
+  return `hsl(${c.h}, ${c.s}%, ${c.l}%)`;
+}
 
 export function defaultBounds(width: number, height: number): TextBounds {
   return {
@@ -168,9 +185,9 @@ interface UthmaniLayout extends UthmaniTextMeasure {
 function buildUthmaniLayout(
   ctx: CanvasRenderingContext2D,
   verse: VerseTimelineEntry,
-  opts: { fonts: FontSet; boxW: number; boxH: number; align: HorizontalAlign; atMinFont?: boolean },
+  opts: { fonts: FontSet; boxW: number; boxH: number; align: HorizontalAlign; atMinFont?: boolean; showAyahNumber?: boolean },
 ): UthmaniLayout {
-  const { fonts, boxW, boxH, align, atMinFont } = opts;
+  const { fonts, boxW, boxH, align, atMinFont, showAyahNumber } = opts;
   const displayWords: WordDef[] = verse.words
     ? verse.words
         .map((w) => ({ index: w.index, text: displayWordText(w.text).trim() }))
@@ -188,7 +205,7 @@ function buildUthmaniLayout(
         return kept;
       })();
 
-  if (displayWords.length > 0) {
+  if (displayWords.length > 0 && showAyahNumber !== false) {
     const last = displayWords[displayWords.length - 1];
     last.text = last.text + ' ' + toArabicIndicDigits(verse.ayahNumber);
   }
@@ -250,14 +267,18 @@ function drawUthmaniVerse(
     align: HorizontalAlign;
     scrimEnabled: boolean;
     wordHighlightEnabled: boolean;
+    textColor: HslColor;
+    glowColor: HslColor;
+    textOpacity: number;
+    showAyahNumber?: boolean;
   },
 ): UthmaniBlock {
-  const { height, fonts, bounds, align, scrimEnabled, wordHighlightEnabled } = opts;
+  const { height, fonts, bounds, align, scrimEnabled, wordHighlightEnabled, textColor, glowColor, textOpacity, showAyahNumber } = opts;
   const boxX = bounds.x;
   const boxY = bounds.y;
   const boxW = bounds.width;
   const boxH = bounds.height;
-  const layout = buildUthmaniLayout(ctx, verse, { fonts, boxW, boxH, align });
+  const layout = buildUthmaniLayout(ctx, verse, { fonts, boxW, boxH, align, showAyahNumber });
   const { rows, fontSize, blockTopRel } = layout;
   const rowCount = rows.length;
   const blockHeight = layout.height;
@@ -272,7 +293,7 @@ function drawUthmaniVerse(
   if (scrimEnabled && rowCount > 0) {
     drawScrim(ctx, { top: blockTopRel - VERTICAL_SAFETY_PAD, bottom: blockTopRel + blockHeight + VERTICAL_SAFETY_PAD }, boxW, boxH);
   }
-  ctx.fillStyle = '#ffffff';
+  ctx.fillStyle = hslToCSS(textColor);
   ctx.shadowColor = 'rgba(0, 0, 0, 0.75)';
   ctx.shadowBlur = baseShadowBlur;
   ctx.shadowOffsetY = Math.round(height * 0.002);
@@ -292,21 +313,21 @@ function drawUthmaniVerse(
       if (verse.words && wordHighlightEnabled) {
         const glow = highlight && wl.index === highlight.word.index ? highlight : null;
         if (glow) {
-          ctx.globalAlpha = opts.opacity * glow.textOpacity;
-          ctx.shadowColor = GLOW_COLOR;
+          ctx.globalAlpha = opts.opacity * glow.textOpacity * textOpacity;
+          ctx.shadowColor = hslToCSS(glowColor, 0.95);
           ctx.shadowBlur = Math.round(baseShadowBlur + (maxGlowBlur - baseShadowBlur) * glow.intensity);
-          ctx.fillStyle = '#ffffff';
+          ctx.fillStyle = hslToCSS(textColor);
         } else {
-          ctx.globalAlpha = opts.opacity * IDLE_OPACITY;
+          ctx.globalAlpha = opts.opacity * IDLE_OPACITY * textOpacity;
           ctx.shadowColor = 'rgba(0, 0, 0, 0.75)';
           ctx.shadowBlur = baseShadowBlur;
-          ctx.fillStyle = '#ffffff';
+          ctx.fillStyle = hslToCSS(textColor);
         }
       } else {
-        ctx.globalAlpha = opts.opacity;
+        ctx.globalAlpha = opts.opacity * textOpacity;
         ctx.shadowColor = 'rgba(0, 0, 0, 0.75)';
         ctx.shadowBlur = baseShadowBlur;
-        ctx.fillStyle = '#ffffff';
+        ctx.fillStyle = hslToCSS(textColor);
       }
 
       if (wl.index === lastWordIdx) {
@@ -445,12 +466,56 @@ export function drawTransformOverlay(
   ctx.restore();
 }
 
+function chunkVerse(verse: VerseTimelineEntry, maxWords: number, tSeconds: number): { verse: VerseTimelineEntry; isLastChunk: boolean } {
+  if (!verse.words || maxWords <= 0) return { verse, isLastChunk: true };
+  const words = verse.words;
+  const totalWords = words.length;
+  if (totalWords <= maxWords) return { verse, isLastChunk: true };
+
+  const chunks: { start: number; end: number; isFirst: boolean; isLast: boolean }[] = [];
+  for (let s = 0; s < totalWords; s += maxWords) {
+    chunks.push({ start: s, end: Math.min(s + maxWords, totalWords), isFirst: s === 0, isLast: s + maxWords >= totalWords });
+  }
+
+  for (const chunk of chunks) {
+    const chunkWords = words.slice(chunk.start, chunk.end);
+    const firstWord = chunkWords[0];
+    const lastWord = chunkWords[chunkWords.length - 1];
+    if (tSeconds >= firstWord.startSeconds && tSeconds < lastWord.endSeconds) {
+      return {
+        verse: {
+          ...verse,
+          words: chunkWords.map((w, i) => ({ ...w, index: i })),
+          startSeconds: firstWord.startSeconds,
+          endSeconds: lastWord.endSeconds,
+        },
+        isLastChunk: chunk.isLast,
+      };
+    }
+  }
+
+  const lastChunk = chunks[chunks.length - 1];
+  const lastChunkWords = words.slice(lastChunk.start, lastChunk.end);
+  return {
+    verse: {
+      ...verse,
+      words: lastChunkWords.map((w, i) => ({ ...w, index: i })),
+      startSeconds: lastChunkWords[0].startSeconds,
+      endSeconds: lastChunkWords[lastChunkWords.length - 1].endSeconds,
+    },
+    isLastChunk: true,
+  };
+}
+
 export function renderFrame(ctx: CanvasRenderingContext2D, opts: FrameRenderOptions): void {
   const { timeline, tSeconds, captionsOn } = opts;
   const width = ctx.canvas.width;
   const height = ctx.canvas.height;
   const align = opts.textAlignX ?? 'center';
   const bounds = opts.bounds ?? defaultBounds(width, height);
+  const textColor = opts.textColor ?? DEFAULT_TEXT_COLOR;
+  const glowColor = opts.glowColor ?? DEFAULT_GLOW_COLOR;
+  const textOpacity = opts.textOpacity ?? DEFAULT_TEXT_OPACITY;
 
   if (opts.drawBackground) {
     opts.drawBackground(ctx, tSeconds);
@@ -469,6 +534,14 @@ export function renderFrame(ctx: CanvasRenderingContext2D, opts: FrameRenderOpti
   }
   if (!active) return;
 
+  const maxWords = opts.maxWordsPerScreen ?? 0;
+  let showAyahNumber = true;
+  if (maxWords > 0) {
+    const result = chunkVerse(active, maxWords, tSeconds);
+    active = result.verse;
+    showAyahNumber = result.isLastChunk;
+  }
+
   const opacity = verseOpacity(active, tSeconds, timeline.fade.inSeconds, timeline.fade.outSeconds);
   if (opacity <= 0) return;
 
@@ -483,6 +556,10 @@ export function renderFrame(ctx: CanvasRenderingContext2D, opts: FrameRenderOpti
       align,
       scrimEnabled: opts.scrimEnabled ?? false,
       wordHighlightEnabled: opts.wordHighlightEnabled ?? false,
+      textColor,
+      glowColor,
+      textOpacity,
+      showAyahNumber,
     });
   }
   if (captionsOn.translation) {
