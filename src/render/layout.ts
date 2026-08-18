@@ -48,6 +48,7 @@ export interface WordLayout {
   x: number;
   y: number;
   width: number;
+  ayahSuffix?: string;
 }
 
 export interface RowLayout {

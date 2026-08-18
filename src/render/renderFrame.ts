@@ -2,12 +2,11 @@ import { compareToWindow } from '../lib/time';
 import type { CaptionTimeline, VerseTimelineEntry, WordSegmentSeconds } from '../lib/types/timeline';
 import type { FontSet } from './fonts';
 import {
-  AYAH_END_MARKER,
   countArabicLetters,
   displayWordText,
   isStandaloneToken,
   layoutTextBlock,
-  ornateAyahMarker,
+  toArabicIndicDigits,
   stripAyahOrnaments,
   stripQuranicMarks,
 } from './layout';
@@ -39,10 +38,10 @@ export interface FrameRenderOptions {
   drawBackground?: (ctx: CanvasRenderingContext2D, tSeconds: number) => void;
 }
 
-const INACTIVE_WORD_ALPHA = 0.55;
 const GLOW_COLOR = 'rgba(255, 205, 110, 0.95)';
-const GLOW_TEXT_COLOR = '#ffe9a8';
-const WORD_RAMP = 0.22;
+const AYAH_NUM_COLOR = 'rgba(255, 215, 100, 1)';
+const IDLE_OPACITY = 0.35;
+const GLOW_BLUR_RATIO = 0.012;
 
 export function defaultBounds(width: number, height: number): TextBounds {
   return {
@@ -75,6 +74,11 @@ function verseOpacity(verse: VerseTimelineEntry, t: number, fadeIn: number, fade
 interface ActiveWordGlow {
   word: WordSegmentSeconds;
   intensity: number;
+  textOpacity: number;
+}
+
+function easeInOut(t: number): number {
+  return -(Math.cos(Math.PI * t) - 1) / 2;
 }
 
 function activeWordGlow(verse: VerseTimelineEntry, t: number): ActiveWordGlow | null {
@@ -83,7 +87,7 @@ function activeWordGlow(verse: VerseTimelineEntry, t: number): ActiveWordGlow | 
   let active = -1;
   for (let i = 0; i < ws.length; i++) {
     const w = ws[i];
-    if (w.endSeconds > w.startSeconds && t >= w.startSeconds && t <= w.endSeconds) {
+    if (w.endSeconds > w.startSeconds && t >= w.startSeconds && t < w.endSeconds) {
       active = i;
       break;
     }
@@ -97,12 +101,29 @@ function activeWordGlow(verse: VerseTimelineEntry, t: number): ActiveWordGlow | 
   if (!(tw.endSeconds > tw.startSeconds)) return null;
   const windowStart = Math.min(mergedStart, tw.startSeconds);
   const windowEnd = tw.endSeconds;
-  if (t < windowStart || t > windowEnd) return null;
+  if (t < windowStart || t >= windowEnd) return null;
   const dur = windowEnd - windowStart;
   if (dur <= 0) return null;
-  const fIn = Math.min(1, (t - windowStart) / (dur * WORD_RAMP));
-  const fOut = Math.min(1, (windowEnd - t) / (dur * WORD_RAMP));
-  return { word: tw, intensity: Math.max(0, Math.min(fIn, fOut)) };
+
+  const progress = (t - windowStart) / dur;
+  let intensity: number;
+  let textOpacity: number;
+
+  if (progress < 0.2) {
+    const p = easeInOut(progress / 0.2);
+    intensity = p;
+    textOpacity = IDLE_OPACITY + (1 - IDLE_OPACITY) * p;
+  } else if (progress < 0.9) {
+    intensity = 1;
+    textOpacity = 1;
+  } else {
+    const p = easeInOut((1 - progress) / 0.1);
+    intensity = p;
+    textOpacity = IDLE_OPACITY + (1 - IDLE_OPACITY) * p;
+  }
+
+  if (intensity <= 0) return null;
+  return { word: tw, intensity, textOpacity };
 }
 
 interface UthmaniBlock {
@@ -149,12 +170,9 @@ function buildUthmaniLayout(
 ): UthmaniLayout {
   const { fonts, boxW, boxH, align, atMinFont } = opts;
   const displayWords: WordDef[] = verse.words
-    ? [
-        ...verse.words
-          .map((w) => ({ index: w.index, text: displayWordText(w.text).trim() }))
-          .filter((w) => w.text.length > 0 && countArabicLetters(w.text) > 0),
-        { index: -1, text: ornateAyahMarker(verse.ayahNumber) },
-      ]
+    ? verse.words
+        .map((w) => ({ index: w.index, text: displayWordText(w.text).trim() }))
+        .filter((w) => w.text.length > 0 && countArabicLetters(w.text) > 0)
     : (() => {
         const raw = stripAyahOrnaments(stripQuranicMarks(verse.uthmani)).trim();
         const parts = raw.length ? raw.split(/\s+/) : [];
@@ -165,8 +183,13 @@ function buildUthmaniLayout(
             kept.push({ index: kept.length, text });
           }
         }
-        return [...kept, { index: -1, text: ornateAyahMarker(verse.ayahNumber) }];
+        return kept;
       })();
+
+  if (displayWords.length > 0) {
+    const last = displayWords[displayWords.length - 1];
+    last.text = last.text + ' ' + toArabicIndicDigits(verse.ayahNumber);
+  }
 
   const rowHeight = Math.round(boxH * 0.16);
   const rowGap = Math.round(boxH * 0.02);
@@ -257,42 +280,23 @@ function drawUthmaniVerse(
   ctx.direction = 'rtl';
   ctx.font = `400 ${fontSize}px ${fonts.uthmani}`;
 
+  const lastWordIdx = rows.length > 0 && rows[rows.length - 1].words.length > 0
+    ? rows[rows.length - 1].words[rows[rows.length - 1].words.length - 1].index
+    : -1;
+
+  const maxGlowBlur = Math.round(height * GLOW_BLUR_RATIO);
+
   for (const row of rows) {
     for (const wl of row.words) {
-      if (wl.index === -1) {
-        ctx.globalAlpha = opts.opacity;
-        ctx.shadowColor = 'rgba(0, 0, 0, 0.75)';
-        ctx.shadowBlur = baseShadowBlur;
-        ctx.fillStyle = '#ffd76b';
-        ctx.fillText(AYAH_END_MARKER, wl.x, blockTopRel + row.y);
-        const digits = stripAyahOrnaments(wl.text);
-        if (digits.length > 0) {
-          const digitSize = Math.max(10, Math.round(wl.width * 0.38));
-          ctx.font = `400 ${digitSize}px ${fonts.uthmani}`;
-          ctx.textAlign = 'center';
-          ctx.direction = 'ltr';
-          ctx.fillText(digits, wl.x - wl.width / 2, blockTopRel + row.y - wl.width * 0.35);
-          ctx.font = `400 ${fontSize}px ${fonts.uthmani}`;
-          ctx.textAlign = 'right';
-          ctx.direction = 'rtl';
-        }
-        ctx.globalAlpha = opts.opacity;
-        continue;
-      }
       if (verse.words && wordHighlightEnabled) {
         const glow = highlight && wl.index === highlight.word.index ? highlight : null;
         if (glow) {
-          ctx.globalAlpha = opts.opacity;
+          ctx.globalAlpha = opts.opacity * glow.textOpacity;
           ctx.shadowColor = GLOW_COLOR;
-          ctx.shadowBlur = Math.round(height * 0.03 * glow.intensity);
-          ctx.fillStyle = GLOW_TEXT_COLOR;
-        } else if (highlight) {
-          ctx.globalAlpha = opts.opacity * INACTIVE_WORD_ALPHA;
-          ctx.shadowColor = 'rgba(0, 0, 0, 0.75)';
-          ctx.shadowBlur = baseShadowBlur;
+          ctx.shadowBlur = Math.round(baseShadowBlur + (maxGlowBlur - baseShadowBlur) * glow.intensity);
           ctx.fillStyle = '#ffffff';
         } else {
-          ctx.globalAlpha = opts.opacity;
+          ctx.globalAlpha = opts.opacity * IDLE_OPACITY;
           ctx.shadowColor = 'rgba(0, 0, 0, 0.75)';
           ctx.shadowBlur = baseShadowBlur;
           ctx.fillStyle = '#ffffff';
@@ -303,7 +307,31 @@ function drawUthmaniVerse(
         ctx.shadowBlur = baseShadowBlur;
         ctx.fillStyle = '#ffffff';
       }
-      ctx.fillText(wl.text, wl.x, blockTopRel + row.y);
+
+      if (wl.index === lastWordIdx) {
+        const spaceIdx = wl.text.lastIndexOf(' ');
+        if (spaceIdx !== -1) {
+          const wordPart = wl.text.substring(0, spaceIdx);
+          const numPart = wl.text.substring(spaceIdx + 1);
+          ctx.fillText(wordPart, wl.x, blockTopRel + row.y);
+          const wordWidth = ctx.measureText(wordPart).width;
+          const spaceWidth = ctx.measureText(' ').width;
+          const prevFill = ctx.fillStyle;
+          const prevShadow = ctx.shadowColor;
+          const prevBlur = ctx.shadowBlur;
+          ctx.fillStyle = AYAH_NUM_COLOR;
+          ctx.shadowColor = 'rgba(0, 0, 0, 0.75)';
+          ctx.shadowBlur = baseShadowBlur;
+          ctx.fillText(numPart, wl.x - wordWidth - spaceWidth, blockTopRel + row.y);
+          ctx.fillStyle = prevFill;
+          ctx.shadowColor = prevShadow;
+          ctx.shadowBlur = prevBlur;
+        } else {
+          ctx.fillText(wl.text, wl.x, blockTopRel + row.y);
+        }
+      } else {
+        ctx.fillText(wl.text, wl.x, blockTopRel + row.y);
+      }
       ctx.globalAlpha = opts.opacity;
     }
   }
