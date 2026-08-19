@@ -17,9 +17,8 @@ dist
 dist-ssr
 *.local
 
-# Generated ffmpeg cores (recreated by scripts/copy-ffmpeg.mjs)
-public/ffmpeg
-public/ffmpeg-st
+# Export test artifacts
+tests/export-loop-results
 
 # Editor / OS
 .vscode/*

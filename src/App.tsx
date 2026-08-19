@@ -106,6 +106,8 @@ export default function App() {
     boundsRef.current = defaultBounds(size.width, size.height);
   }, [size.width, size.height]);
 
+  const buildSeq = useRef(0);
+
   const build = useCallback(
     async (rid: string, s: number, f: number, t: number, trans: boolean) => {
       if (!rid) return;
@@ -113,6 +115,7 @@ export default function App() {
         setError('Invalid verse range (1 <= from <= to)');
         return;
       }
+      const seq = ++buildSeq.current;
       setIsLoading(true);
       setError(null);
       try {
@@ -128,6 +131,7 @@ export default function App() {
           },
           resolution,
         );
+        if (seq !== buildSeq.current) return;
         timelineRef.current = tl;
         setTimeline(tl);
         setGranularity(tl.meta.granularity);
@@ -135,9 +139,10 @@ export default function App() {
           setError(resolution.warnings.join('; '));
         }
       } catch (err) {
+        if (seq !== buildSeq.current) return;
         setError((err as Error).message);
       } finally {
-        setIsLoading(false);
+        if (seq === buildSeq.current) setIsLoading(false);
       }
     },
     [],
@@ -443,33 +448,62 @@ export default function App() {
     bgImageRef.current = canvas;
   }, []);
 
+  const [audioWarning, setAudioWarning] = useState<string | null>(null);
+
   const handleExport = useCallback(async () => {
     const tl = timelineRef.current;
-    const p = playerRef.current;
     const ctx = ctxRef.current;
-    if (!tl || !p || !ctx) return;
+    if (!tl) {
+      setError('No timeline loaded — load a recitation range first');
+      return;
+    }
+    if (!ctx) {
+      setError('Canvas not initialised — please reload the page');
+      return;
+    }
+    if (!tl.meta.audioUrl) {
+      setError('No audio source available for this recitation');
+      return;
+    }
     setIsExporting(true);
     setExportProgress(0);
+    setAudioWarning(null);
     try {
       const duration = tl.verses[tl.verses.length - 1].endSeconds;
-      p.element.currentTime = tl.meta.clipStartOffsetSeconds;
-      await p.play();
-      setIsPlaying(true);
       const result = await exportClip({
-        canvas: ctx.canvas,
-        audioEl: p.element,
+        width: ctx.canvas.width,
+        height: ctx.canvas.height,
         durationSeconds: duration,
-        onCaptureProgress: (d) => setExportProgress(Math.min(0.9, d / duration)),
-        onTranscodeProgress: (pr) =>
-          setExportProgress(0.9 + 0.1 * Math.min(1, pr.ratio / duration)),
+        audioUrl: tl.meta.audioUrl,
+        clipStartOffsetSeconds: tl.meta.clipStartOffsetSeconds,
+        render: {
+          timeline: tl,
+          captionsOn: captionsRef.current,
+          fonts: fontsRef.current,
+          bounds: boundsRef.current,
+          scrimEnabled: scrimRef.current,
+          wordHighlightEnabled: wordHighlightRef.current,
+          maxWordsPerScreen: maxWordsRef.current,
+          textColor: textColorRef.current,
+          glowColor: glowColorRef.current,
+          textOpacity: textOpacityRef.current,
+          drawBackground: (c) => drawBackground(c, bgPresetRef.current, bgImageRef.current),
+        },
+        onProgress: (p) => {
+          if (p.phase === 'render') setExportProgress(p.ratio * 0.85);
+          else if (p.phase === 'audio') setExportProgress(0.85 + p.ratio * 0.12);
+          else setExportProgress(0.97 + p.ratio * 0.03);
+        },
       });
+      if (!result.hasAudio) {
+        setAudioWarning('Exported video has no audio — audio encoding was unavailable in this browser context');
+      }
       downloadBlob(result.blob, `quran-${tl.meta.surah}-${tl.meta.versesFrom}-${tl.meta.versesTo}.mp4`);
     } catch (err) {
       setError((err as Error).message);
     } finally {
       setIsExporting(false);
       setExportProgress(0);
-      p.pause();
     }
   }, []);
 
@@ -539,10 +573,7 @@ export default function App() {
               min={1}
               max={286}
               value={from}
-              onChange={(e) => {
-                const v = Math.max(1, Number(e.target.value));
-                setFrom(Math.min(v, to));
-              }}
+              onChange={(e) => setFrom(Math.max(1, Number(e.target.value)))}
               style={inputStyle}
             />
           </label>
@@ -553,10 +584,7 @@ export default function App() {
               min={1}
               max={286}
               value={to}
-              onChange={(e) => {
-                const v = Math.max(1, Number(e.target.value));
-                setTo(Math.max(v, from));
-              }}
+              onChange={(e) => setTo(Math.max(1, Number(e.target.value)))}
               style={inputStyle}
             />
           </label>
@@ -716,8 +744,20 @@ export default function App() {
           </div>
         )}
         {error && <div style={{ fontSize: 13, color: '#fca5a5' }}>{error}</div>}
+        {audioWarning && <div style={{ fontSize: 12, color: '#fbbf24' }}>{audioWarning}</div>}
         {isExporting && (
           <div style={{ fontSize: 12, opacity: 0.8 }}>
+            <div style={{ width: '100%', height: 6, background: '#30363d', borderRadius: 3, marginBottom: 4 }}>
+              <div
+                style={{
+                  width: `${Math.round(exportProgress * 100)}%`,
+                  height: '100%',
+                  background: '#1f6feb',
+                  borderRadius: 3,
+                  transition: 'width 250ms ease',
+                }}
+              />
+            </div>
             Keep this tab in the foreground during export.
           </div>
         )}
