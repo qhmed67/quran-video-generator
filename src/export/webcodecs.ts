@@ -324,33 +324,55 @@ async function loadAudioSliceByRange(
   const bytesPerSecond = (frameInfo.bitrateKbps * 1000) / 8;
   const totalSize = parseContentRangeTotal(head.headers) ?? head.bytes.byteLength;
 
-  const startByte = Math.max(0, Math.floor((clipStartSeconds - RANGE_MARGIN_SECONDS) * bytesPerSecond));
-  const endByte = Math.min(
+  let startByte = Math.max(0, Math.floor((clipStartSeconds - RANGE_MARGIN_SECONDS) * bytesPerSecond));
+  let endByte = Math.min(
     Math.max(totalSize - 1, startByte),
     Math.ceil((clipStartSeconds + clipDurationSeconds + RANGE_MARGIN_SECONDS) * bytesPerSecond),
   );
 
-  const slice = await fetchRange(url, startByte, endByte);
-  if (slice.status !== 206) throw new Error(`range fetch failed (HTTP ${slice.status})`);
-  if (slice.bytes.byteLength < 1024) {
-    throw new Error(`range slice too small: expected ~${endByte - startByte + 1} bytes, got ${slice.bytes.byteLength} (content-range: ${slice.headers.get('content-range') ?? 'n/a'})`);
+  let lastError: unknown = null;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const slice = await fetchRange(url, startByte, endByte);
+      if (slice.status !== 206) throw new Error(`range fetch failed (HTTP ${slice.status})`);
+      if (slice.bytes.byteLength < 1024) {
+        throw new Error(`range slice too small: expected ~${endByte - startByte + 1} bytes, got ${slice.bytes.byteLength} (content-range: ${slice.headers.get('content-range') ?? 'n/a'})`);
+      }
+      const sliceAudioStart = skipId3(slice.bytes);
+      const sliceSync = findFrameSync(slice.bytes, sliceAudioStart);
+      if (sliceSync === -1) throw new Error('no MPEG frame sync in range slice');
+      const trimmed = trimToCompleteFrames(slice.bytes, sliceSync);
+      const buffer = await decodeAudioBytes(trimmed, url);
+      const rawLocalOffset =
+        clipStartSeconds - (startByte + sliceSync - sliceAudioStart) / bytesPerSecond;
+      const bufferLocalOffset = Math.max(0, rawLocalOffset);
+      const leadShortfall = rawLocalOffset < 0 ? -rawLocalOffset + 1 : 0;
+      const tailShortfall =
+        bufferLocalOffset + clipDurationSeconds > buffer.duration
+          ? bufferLocalOffset + clipDurationSeconds - buffer.duration + 1
+          : 0;
+      console.warn(
+        `[slice] total=${totalSize} start=${startByte} end=${endByte} got=${slice.bytes.byteLength} id3Skip=${sliceAudioStart} sync=${sliceSync} trimmed=${trimmed.byteLength} buffer=${buffer.duration.toFixed(1)}s clip@${bufferLocalOffset.toFixed(2)}s lead=${leadShortfall.toFixed(2)}s tail=${tailShortfall.toFixed(2)}s`,
+      );
+      if (leadShortfall <= 0 && tailShortfall <= 0) {
+        return { buffer, offsetSeconds: bufferLocalOffset };
+      }
+      if (leadShortfall > 0) {
+        startByte = Math.max(0, startByte - Math.ceil(leadShortfall * bytesPerSecond));
+      }
+      if (tailShortfall > 0) {
+        endByte = Math.min(totalSize - 1, endByte + Math.ceil(tailShortfall * bytesPerSecond));
+      }
+      lastError = new Error(
+        `slice did not cover clip (clip at ${bufferLocalOffset.toFixed(2)}s of ${buffer.duration.toFixed(2)}s); extending range`,
+      );
+    } catch (err) {
+      lastError = err;
+    }
   }
-  const sliceAudioStart = skipId3(slice.bytes);
-  const sliceSync = findFrameSync(slice.bytes, sliceAudioStart);
-  if (sliceSync === -1) throw new Error('no MPEG frame sync in range slice');
-  const trimmed = trimToCompleteFrames(slice.bytes, sliceSync);
-  console.warn(
-    `[slice] total=${totalSize} startByte=${startByte} endByte=${endByte} got=${slice.bytes.byteLength} id3Skip=${sliceAudioStart} sync=${sliceSync} trimmed=${trimmed.byteLength}`,
-  );
-
-  const buffer = await decodeAudioBytes(trimmed, url);
-  return {
-    buffer,
-    offsetSeconds: Math.max(
-      0,
-      clipStartSeconds - RANGE_MARGIN_SECONDS + (sliceSync - sliceAudioStart) / bytesPerSecond,
-    ),
-  };
+  throw lastError instanceof Error
+    ? lastError
+    : new Error('failed to load audio slice');
 }
 
 /**

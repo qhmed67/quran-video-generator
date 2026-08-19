@@ -106,6 +106,8 @@ export default function App() {
     boundsRef.current = defaultBounds(size.width, size.height);
   }, [size.width, size.height]);
 
+  const buildSeq = useRef(0);
+
   const build = useCallback(
     async (rid: string, s: number, f: number, t: number, trans: boolean) => {
       if (!rid) return;
@@ -113,6 +115,7 @@ export default function App() {
         setError('Invalid verse range (1 <= from <= to)');
         return;
       }
+      const seq = ++buildSeq.current;
       setIsLoading(true);
       setError(null);
       try {
@@ -128,6 +131,7 @@ export default function App() {
           },
           resolution,
         );
+        if (seq !== buildSeq.current) return;
         timelineRef.current = tl;
         setTimeline(tl);
         setGranularity(tl.meta.granularity);
@@ -135,9 +139,10 @@ export default function App() {
           setError(resolution.warnings.join('; '));
         }
       } catch (err) {
+        if (seq !== buildSeq.current) return;
         setError((err as Error).message);
       } finally {
-        setIsLoading(false);
+        if (seq === buildSeq.current) setIsLoading(false);
       }
     },
     [],
@@ -568,10 +573,7 @@ export default function App() {
               min={1}
               max={286}
               value={from}
-              onChange={(e) => {
-                const v = Math.max(1, Number(e.target.value));
-                setFrom(Math.min(v, to));
-              }}
+              onChange={(e) => setFrom(Math.max(1, Number(e.target.value)))}
               style={inputStyle}
             />
           </label>
@@ -582,10 +584,7 @@ export default function App() {
               min={1}
               max={286}
               value={to}
-              onChange={(e) => {
-                const v = Math.max(1, Number(e.target.value));
-                setTo(Math.max(v, from));
-              }}
+              onChange={(e) => setTo(Math.max(1, Number(e.target.value)))}
               style={inputStyle}
             />
           </label>

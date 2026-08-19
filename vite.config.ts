@@ -117,7 +117,10 @@ function devProxy(env: Record<string, string>): Plugin {
           if (acceptRanges) res.setHeader('Accept-Ranges', acceptRanges);
           const contentLength = upstream.headers.get('content-length');
           if (contentLength) res.setHeader('Content-Length', contentLength);
-          Readable.fromWeb(body as unknown as import('node:stream/web').ReadableStream).pipe(res);
+          const readable = Readable.fromWeb(body as unknown as import('node:stream/web').ReadableStream);
+          readable.on('error', () => { if (!res.writableEnded) res.destroy(); });
+          res.on('close', () => { readable.destroy(); });
+          readable.pipe(res);
         } catch {
           res.statusCode = 502;
           res.end('upstream failed');
