@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap');
+
 @font-face {
   font-family: 'KFGQPC HAFS Uthmanic Script';
   src: url('/fonts/KFGQPC-Uthmanic-HAFS.otf') format('opentype');
@@ -6,32 +8,558 @@
 }
 
 :root {
-  color-scheme: dark;
+  color-scheme: light;
+
+  /* Starbucks Design System Tokens */
+  --bg: #f2f0eb;
+  --surface: #ffffff;
+  --surface-warm: #edebe9;
+  --surface-cool: #f9f9f9;
+
+  --fg: rgba(0, 0, 0, 0.87);
+  --fg-2: #33433d;
+  --muted: rgba(0, 0, 0, 0.58);
+  --meta: var(--muted);
+
+  --border: #d6dbde;
+  --border-soft: #e7e7e7;
+
+  --accent: #00754A;
+  --accent-on: #ffffff;
+  --accent-hover: color-mix(in oklab, var(--accent), black 8%);
+  --accent-active: color-mix(in oklab, var(--accent), black 14%);
+
+  --success: #16a34a;
+  --warn: #fbbc05;
+  --danger: #c82014;
+  --danger-soft: rgba(200, 32, 20, 0.08);
+
+  --font-display: 'IBM Plex Sans Arabic', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  --font-body: 'IBM Plex Sans Arabic', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', 'JetBrains Mono', Menlo, Monaco, Consolas, monospace;
+
+  --text-xs: 13px;
+  --text-sm: 14px;
+  --text-base: 16px;
+  --text-lg: 19px;
+  --text-xl: 24px;
+  --text-2xl: 32px;
+
+  --leading-body: 1.5;
+  --leading-tight: 1.2;
+  --tracking: -0.01em;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+
+  --radius-sm: 4px;
+  --radius-md: 12px;
+  --radius-pill: 9999px;
+
+  --elev-flat: none;
+  --elev-raised: 0 0 0.5px 0 rgba(0, 0, 0, 0.14), 0 1px 1px 0 rgba(0, 0, 0, 0.24);
+  --elev-modal: 0 0 0.5px 0 rgba(0, 0, 0, 0.14), 0 4px 16px 0 rgba(0, 0, 0, 0.18);
+  --elev-deep: 0 0 0.5px 0 rgba(0, 0, 0, 0.14), 0 8px 32px 0 rgba(0, 0, 0, 0.24);
+
+  --focus-ring: 0 0 0 3px color-mix(in oklab, var(--accent), transparent 70%);
+
+  --motion-fast: 150ms;
+  --motion-base: 200ms;
+  --ease-standard: cubic-bezier(0.25, 0.46, 0.45, 0.94);
 }
 
-html,
-body,
+/* ── Dark Mode ──────────────────────────────────────────────────────
+ * Warm charcoal palette — not pure black. Matches the spiritual,
+ * calm tone of the Quranic content. */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --bg: #1a1d21;
+  --surface: #242830;
+  --surface-warm: #2a2e36;
+  --surface-cool: #202328;
+
+  --fg: rgba(255, 255, 255, 0.92);
+  --fg-2: #b0b8c4;
+  --muted: rgba(255, 255, 255, 0.56);
+  --meta: var(--muted);
+
+  --border: #3a3f4a;
+  --border-soft: #2e333c;
+
+  --accent: #009960;
+  --accent-on: #ffffff;
+  --accent-hover: color-mix(in oklab, var(--accent), white 10%);
+  --accent-active: color-mix(in oklab, var(--accent), white 18%);
+
+  --danger-soft: rgba(200, 32, 20, 0.15);
+
+  --elev-raised: 0 0 0.5px 0 rgba(0, 0, 0, 0.4), 0 1px 1px 0 rgba(0, 0, 0, 0.5);
+  --elev-modal: 0 0 0.5px 0 rgba(0, 0, 0, 0.4), 0 4px 16px 0 rgba(0, 0, 0, 0.5);
+  --elev-deep: 0 0 0.5px 0 rgba(0, 0, 0, 0.4), 0 8px 32px 0 rgba(0, 0, 0, 0.6);
+}
+
+html, body {
+  height: 100%;
+  overflow: hidden;
+  margin: 0;
+}
+
 #root {
   height: 100%;
+  min-height: 100%;
+  margin: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 body {
   margin: 0;
-  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-  background: #0b0f14;
-  color: #e7e7e7;
+  font-family: var(--font-body);
+  background: var(--bg);
+  color: var(--fg);
+  letter-spacing: var(--tracking);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  transition: background-color 300ms ease, color 300ms ease;
 }
 
 * {
   box-sizing: border-box;
 }
 
-button,
-input,
-select {
+button, input, select, textarea {
   font: inherit;
 }
 
 button {
   cursor: pointer;
+  letter-spacing: var(--tracking);
+}
+
+/* Button hover — simple darken */
+.btn-primary:hover {
+  background: var(--accent-hover) !important;
+}
+
+.btn-primary:active {
+  transform: scale(0.95);
+}
+
+.btn-ghost:hover {
+  background: var(--surface-warm) !important;
+}
+
+.btn-ghost:active {
+  transform: scale(0.95);
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: var(--radius-pill);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--muted);
+}
+
+/* Selection */
+::selection {
+  background: color-mix(in oklab, var(--accent), transparent 80%);
+  color: var(--fg);
+}
+
+/* Theme transitions for smooth mode switching */
+nav, footer, .lang-toggle, .btn-primary {
+  transition: background-color 300ms ease, border-color 300ms ease, color 300ms ease;
+}
+
+/* Theme toggle button */
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 9999px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--fg);
+  cursor: pointer;
+  transition: background-color 300ms ease, border-color 300ms ease, color 300ms ease;
+  flex-shrink: 0;
+}
+
+.theme-toggle:hover {
+  border-color: var(--accent);
+  background: var(--surface-warm);
+}
+
+.theme-toggle:focus-visible {
+  box-shadow: var(--focus-ring);
+  border-color: var(--accent);
+}
+
+.theme-toggle:active {
+  transform: scale(0.92);
+}
+
+.theme-toggle svg {
+  width: 18px;
+  height: 18px;
+  transition: transform 300ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.theme-toggle:hover svg {
+  transform: rotate(20deg);
+}
+
+/* ── RTL/LTR Layout Stability ────────────────────────────────────────
+ * Normalize font metrics and fix container dimensions to prevent
+ * Cumulative Layout Shift (CLS) when toggling between Arabic (RTL)
+ * and English (LTR). */
+
+/* Fixed line-height pixel values prevent baseline shift between fonts */
+.lh-fixed-sm { line-height: 20px; }
+.lh-fixed-md { line-height: 24px; }
+.lh-fixed-lg { line-height: 29px; }
+
+/* Button stability — min-width prevents shrink/grow on text change */
+.btn-stable {
+  min-width: 140px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+}
+
+/* Nav title stability — fixed height prevents header shift */
+.nav-title-stable {
+  height: 20px;
+  display: flex;
+  align-items: center;
+  line-height: 20px;
+}
+
+/* Subtitle stability — clamp height to worst-case both languages */
+.subtitle-stable {
+  min-height: 54px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Footer stability */
+.footer-stable {
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Arabic font baseline normalization */
+[lang="ar"], .ar-text {
+  font-feature-settings: "liga" 1, "calt" 1;
+  text-rendering: optimizeLegibility;
+}
+
+/* Ensure both fonts share consistent metrics */
+
+/* Verse glow — static soft halo behind the whole verse block */
+.verse-glow {
+  position: relative;
+  filter:
+    drop-shadow(0 1px 1px rgba(0, 0, 0, 0.16))
+    drop-shadow(0 6px 24px rgba(0, 98, 65, 0.18))
+    drop-shadow(0 0 48px rgba(0, 117, 74, 0.10));
+}
+
+:root[data-theme="dark"] .verse-glow {
+  filter:
+    drop-shadow(0 1px 2px rgba(0, 0, 0, 0.55))
+    drop-shadow(0 6px 28px rgba(77, 255, 195, 0.14))
+    drop-shadow(0 0 48px rgba(77, 255, 195, 0.10));
+}
+
+/* Verse shine — animated sheen, RTL direction (right→left), applied per line */
+.verse-shine {
+  background: linear-gradient(
+    270deg,
+    var(--fg) 0%,
+    var(--fg) 30%,
+    rgba(200, 255, 220, 1) 46%,
+    rgba(255, 255, 255, 1) 50%,
+    rgba(200, 255, 220, 1) 54%,
+    var(--fg) 70%,
+    var(--fg) 100%
+  );
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: verseShine 4s ease-in-out infinite;
+}
+
+:root[data-theme="dark"] .verse-shine {
+  background: linear-gradient(
+    270deg,
+    var(--fg) 0%,
+    var(--fg) 28%,
+    #4dffc3 44%,
+    #ffffff 50%,
+    #4dffc3 56%,
+    var(--fg) 72%,
+    var(--fg) 100%
+  );
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+@keyframes verseShine {
+  0% { background-position: 0% center; }
+  100% { background-position: 200% center; }
+}
+
+/* Language toggle */
+.lang-toggle {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  padding: 3px;
+  background: var(--surface-warm);
+  border: 1px solid var(--border);
+  border-radius: 9999px;
+  cursor: pointer;
+  overflow: hidden;
+  height: 40px;
+  min-width: 88px;
+  transition: border-color 180ms ease, box-shadow 180ms ease, background 180ms ease;
+}
+
+.lang-toggle:hover {
+  border-color: var(--accent);
+  background: var(--surface);
+}
+
+.lang-toggle:focus-visible {
+  box-shadow: var(--focus-ring);
+  border-color: var(--accent);
+}
+
+.lang-toggle-slider {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 40px;
+  height: 32px;
+  background: var(--accent);
+  border-radius: 9999px;
+  transition: transform 200ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  z-index: 0;
+  box-shadow: 0 1px 3px rgba(0, 117, 74, 0.25);
+}
+
+.lang-toggle-slider[data-lang="en"] {
+  transform: translateX(42px);
+}
+
+.lang-toggle-label {
+  position: relative;
+  z-index: 1;
+  flex: 1;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--muted);
+  transition: color 180ms ease, transform 180ms ease;
+  user-select: none;
+  line-height: 32px;
+}
+
+.lang-toggle-label.active {
+  color: var(--accent-on);
+}
+
+.lang-toggle-label:not(.active):hover {
+  color: var(--fg);
+}
+
+/* Page fade transition */
+.page-fade-enter {
+  opacity: 0;
+  transform: translateY(8px);
+}
+
+.page-fade-enter-active {
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity 400ms cubic-bezier(0.25, 0.46, 0.45, 0.94),
+              transform 400ms cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+.page-fade-exit {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.page-fade-exit-active {
+  opacity: 0;
+  transform: translateY(-8px);
+  transition: opacity 300ms cubic-bezier(0.25, 0.46, 0.45, 0.94),
+              transform 300ms cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+/* Text fade for language switch */
+.text-fade {
+  transition: opacity 250ms cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+.text-fade.fading {
+  opacity: 0;
+}
+
+/* Focus visible */
+:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+/* Range input styling */
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 4px;
+  background: var(--border);
+  border-radius: var(--radius-pill);
+  outline: none;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--accent);
+  cursor: pointer;
+  border: 2px solid var(--surface);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  transition: transform var(--motion-fast) var(--ease-standard);
+}
+
+input[type="range"]::-webkit-slider-thumb:hover {
+  transform: scale(1.15);
+}
+
+input[type="range"]::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--accent);
+  cursor: pointer;
+  border: 2px solid var(--surface);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+/* Checkbox styling */
+input[type="checkbox"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  cursor: pointer;
+  position: relative;
+  flex-shrink: 0;
+  transition: all var(--motion-fast) var(--ease-standard);
+}
+
+input[type="checkbox"]:checked {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+input[type="checkbox"]:checked::after {
+  content: '';
+  position: absolute;
+  left: 5px;
+  top: 1px;
+  width: 5px;
+  height: 10px;
+  border: solid var(--accent-on);
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+input[type="checkbox"]:focus-visible {
+  box-shadow: var(--focus-ring);
+}
+
+/* Select styling */
+select {
+  -webkit-appearance: none;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M3 4.5L6 7.5L9 4.5' fill='none' stroke='%236b7280' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  padding-right: 36px !important;
+}
+
+/* ── Hero Layout Stability ────────────────────────────────────────
+ * Fluid spacing that adapts to viewport height, preventing overlap
+ * when the window is resized or zoomed in. */
+
+.hero-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 0;
+  gap: clamp(12px, 2.5vh, 32px);
+  padding-block: clamp(8px, 2vh, 24px);
+}
+
+.hero-stack > * {
+  flex-shrink: 1;
+  min-height: 0;
+}
+
+.hero-subtitle-safe {
+  font-size: clamp(14px, 1.6vw, 18px) !important;
+  line-height: 1.45 !important;
+  max-width: min(500px, 88vw) !important;
+  min-height: 0 !important;
+}
+
+.cta-safe {
+  padding: clamp(10px, 1.6vh, 14px) clamp(22px, 4vw, 40px) !important;
+  font-size: clamp(14px, 1.4vw, 16px) !important;
+  min-width: clamp(120px, 20vw, 160px) !important;
+  flex-shrink: 0 !important;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
