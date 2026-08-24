@@ -1,35 +1,34 @@
-import { capturePass } from './capture';
-import type { CaptureResult } from './capture';
-import { transcodeWebmToMp4 } from './transcode';
-import type { TranscodeProgress } from './transcode';
+import { encodeVideoToMp4 } from './webcodecs';
+import type { ExportProgress } from './webcodecs';
+import type { FrameRenderOptions } from '../render/renderFrame';
 
 export interface ExportOptions {
-  canvas: HTMLCanvasElement;
-  audioEl: HTMLAudioElement | null;
+  width: number;
+  height: number;
   durationSeconds: number;
   fps?: number;
-  onCaptureProgress?: (doneSeconds: number) => void;
-  onTranscodeProgress?: (p: TranscodeProgress) => void;
+  audioUrl: string;
+  clipStartOffsetSeconds: number;
+  render: Omit<FrameRenderOptions, 'tSeconds'>;
+  onProgress?: (p: ExportProgress) => void;
 }
 
 export interface ExportResult {
   blob: Blob;
   directMp4: boolean;
+  hasAudio: boolean;
 }
 
 export async function exportClip(opts: ExportOptions): Promise<ExportResult> {
-  const fps = opts.fps ?? 30;
-  const capture: CaptureResult = await capturePass(
-    opts.canvas,
-    opts.audioEl,
-    opts.durationSeconds,
-    fps,
-  );
-  if (capture.isMp4) {
-    return { blob: capture.blob, directMp4: true };
-  }
-  const blob = await transcodeWebmToMp4(capture.blob, {
-    onProgress: opts.onTranscodeProgress,
+  const result = await encodeVideoToMp4({
+    width: opts.width,
+    height: opts.height,
+    durationSeconds: opts.durationSeconds,
+    fps: opts.fps,
+    audioUrl: opts.audioUrl,
+    clipStartOffsetSeconds: opts.clipStartOffsetSeconds,
+    render: opts.render,
+    onProgress: opts.onProgress,
   });
-  return { blob, directMp4: false };
+  return { blob: result.blob, directMp4: true, hasAudio: result.hasAudio };
 }

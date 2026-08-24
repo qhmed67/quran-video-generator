@@ -4,16 +4,13 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "node scripts/copy-ffmpeg.mjs && vite",
-    "build": "node scripts/copy-ffmpeg.mjs && tsc --noEmit && vite build",
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
     "typecheck": "tsc --noEmit",
     "preview": "vite preview"
   },
   "dependencies": {
-    "@ffmpeg.wasm/core-mt": "^0.13.2",
-    "@ffmpeg.wasm/core-st": "^0.13.2",
-    "@ffmpeg.wasm/main": "^0.13.1",
-    "@ffmpeg/util": "^0.12.2",
+    "mp4-muxer": "^5.2.2",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"
   },
@@ -22,6 +19,7 @@
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
     "@vitejs/plugin-react": "^6.0.5",
+    "playwright": "^1.62.1",
     "typescript": "^7.0.2",
     "vite": "^8.2.1"
   }
