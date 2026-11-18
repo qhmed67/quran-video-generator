@@ -10,17 +10,23 @@ export const GRADIENT_PRESETS: GradientPreset[] = [
   { id: 'ocean', label: 'Ocean Night', colors: ['#082f49', '#134e4a', '#020617'] },
 ];
 
+/**
+ * `width`/`height` are the logical frame size. They differ from the canvas
+ * backing size when the preview rasterises at a smaller resolution, because
+ * the caller draws through a scale transform.
+ */
 export function drawGradientBackground(
   ctx: CanvasRenderingContext2D,
   preset: GradientPreset,
+  width = ctx.canvas.width,
+  height = ctx.canvas.height,
 ): void {
-  const { width: w, height: h } = ctx.canvas;
-  const grad = ctx.createLinearGradient(0, 0, 0, h);
+  const grad = ctx.createLinearGradient(0, 0, 0, height);
   grad.addColorStop(0, preset.colors[0]);
   grad.addColorStop(0.55, preset.colors[1]);
   grad.addColorStop(1, preset.colors[2]);
   ctx.fillStyle = grad;
-  ctx.fillRect(0, 0, w, h);
+  ctx.fillRect(0, 0, width, height);
 }
 
 export type BgImage = HTMLImageElement | HTMLCanvasElement | null;
@@ -51,10 +57,12 @@ export function drawBackground(
   ctx: CanvasRenderingContext2D,
   preset: GradientPreset,
   img: BgImage,
+  width = ctx.canvas.width,
+  height = ctx.canvas.height,
 ): void {
   if (img && img.width > 0 && img.height > 0) {
-    drawImageCover(ctx, img, ctx.canvas.width, ctx.canvas.height);
+    drawImageCover(ctx, img, width, height);
   } else {
-    drawGradientBackground(ctx, preset);
+    drawGradientBackground(ctx, preset, width, height);
   }
 }

@@ -1,50 +1,45 @@
-import { StrictMode, useState, useEffect, useRef } from 'react';
+import { StrictMode, useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import ErrorBoundary from './ErrorBoundary';
 import Landing from './Landing';
 import App from './App';
 import './index.css';
 
+type Route = 'landing' | 'studio';
+
+function routeOf(hash: string): Route {
+  const clean = hash.replace(/^#\/?/, '');
+  return clean === '' ? 'landing' : 'studio';
+}
+
 function Router() {
-  const [route, setRoute] = useState(window.location.hash);
-  const [displayed, setDisplayed] = useState<'landing' | 'app'>(
-    (!route || route === '#' || route === '#/') ? 'landing' : 'app'
-  );
-  const [fadingOut, setFadingOut] = useState(false);
-  const nextRoute = useRef(route);
+  const [shown, setShown] = useState<Route>(() => routeOf(window.location.hash));
+  const [leaving, setLeaving] = useState(false);
 
   useEffect(() => {
-    const handleHash = () => {
-      const newHash = window.location.hash;
-      const newTarget: 'landing' | 'app' =
-        (!newHash || newHash === '#' || newHash === '#/') ? 'landing' : 'app';
-
-      if (newTarget !== displayed) {
-        setFadingOut(true);
-        nextRoute.current = newHash;
-        setTimeout(() => {
-          setRoute(newHash);
-          setDisplayed(newTarget);
-          setFadingOut(false);
-        }, 300);
-      } else {
-        setRoute(newHash);
-      }
+    const onHashChange = () => {
+      const next = routeOf(window.location.hash);
+      setShown((current) => {
+        if (next !== current) setLeaving(true);
+        return current;
+      });
     };
-    window.addEventListener('hashchange', handleHash);
-    return () => window.removeEventListener('hashchange', handleHash);
-  }, [displayed]);
+    window.addEventListener('hashchange', onHashChange);
+    return () => window.removeEventListener('hashchange', onHashChange);
+  }, []);
 
-  const showLanding = displayed === 'landing';
+  useEffect(() => {
+    if (!leaving) return;
+    const id = window.setTimeout(() => {
+      setShown(routeOf(window.location.hash));
+      setLeaving(false);
+    }, 260);
+    return () => window.clearTimeout(id);
+  }, [leaving]);
 
   return (
-    <div style={{
-      height: '100%',
-      opacity: fadingOut ? 0 : 1,
-      transform: fadingOut ? 'translateY(-6px)' : 'translateY(0)',
-      transition: 'opacity 300ms cubic-bezier(0.25, 0.46, 0.45, 0.94), transform 300ms cubic-bezier(0.25, 0.46, 0.45, 0.94)',
-    }}>
-      {showLanding ? <Landing /> : <App />}
+    <div className={leaving ? 'route is-leaving' : 'route'}>
+      {shown === 'landing' ? <Landing /> : <App />}
     </div>
   );
 }
