@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Preview visual check</title>
+    <style>
+      body { margin: 0; background: #101010; color: #ddd; font: 12px system-ui, sans-serif; }
+      .grid { display: flex; flex-wrap: wrap; gap: 8px; padding: 8px; }
+      figure { margin: 0; }
+      figure figcaption { padding: 2px 0 6px; color: #9aa; }
+      canvas { display: block; background: #000; }
+      @font-face {
+        font-family: 'KFGQPC HAFS Uthmanic Script';
+        src: url('/fonts/KFGQPC-Uthmanic-HAFS.otf') format('opentype');
+        font-weight: 400 700;
+        font-display: block;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="grid" id="grid"></div>
+    <script type="module" src="/tests/visual.ts"></script>
+  </body>
+</html>

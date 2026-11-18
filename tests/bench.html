@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Preview render benchmark</title>
+    <style>
+      html, body { margin: 0; background: #111; color: #eee; font: 14px system-ui, sans-serif; }
+      canvas { display: block; width: 360px; height: auto; }
+      pre { padding: 8px 12px; }
+      @font-face {
+        font-family: 'KFGQPC HAFS Uthmanic Script';
+        src: url('/fonts/KFGQPC-Uthmanic-HAFS.otf') format('opentype');
+        font-weight: 400 700;
+        font-display: block;
+      }
+    </style>
+  </head>
+  <body>
+    <pre id="out">running…</pre>
+    <canvas id="stage"></canvas>
+    <script type="module" src="/tests/bench.ts"></script>
+  </body>
+</html>

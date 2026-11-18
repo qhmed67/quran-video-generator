@@ -20,6 +20,9 @@ dist-ssr
 # Export test artifacts
 tests/export-loop-results
 
+# Playwright MCP / verification screenshots and page dumps
+.playwright-mcp/
+
 # Editor / OS
 .vscode/*
 !.vscode/extensions.json
