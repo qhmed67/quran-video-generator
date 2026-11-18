@@ -4,6 +4,24 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Quranic Video Generator</title>
+    <meta
+      name="description"
+      content="Turn a surah range into a word-synced Qur'an video: Uthmani captions, word highlight, vertical or square MP4 export."
+    />
+    <meta name="color-scheme" content="light dark" />
+    <link rel="icon" type="image/png" href="/download.png" />
+    <script>
+      // Resolve the theme before first paint so the studio never flashes light-then-dark.
+      (function () {
+        try {
+          var saved = localStorage.getItem('theme');
+          var dark = saved === 'dark' || (saved !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+          document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+        } catch (e) {
+          document.documentElement.setAttribute('data-theme', 'light');
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

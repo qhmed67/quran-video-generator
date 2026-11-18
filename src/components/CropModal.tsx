@@ -57,6 +57,14 @@ export default function CropModal({ image, defaultAspect, onAspectChange, onConf
     setCrop(initCrop(image.naturalWidth, image.naturalHeight, defaultAspect));
   }, [defaultAspect, aspect, image]);
 
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onCancel();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onCancel]);
+
   const updateView = useCallback(() => {
     const el = containerRef.current;
     if (!el) return;
@@ -191,76 +199,27 @@ export default function CropModal({ image, defaultAspect, onAspectChange, onConf
   };
 
   return (
-    <div
-      style={{
-        position: 'fixed',
-        inset: 0,
-        background: 'rgba(0, 0, 0, 0.72)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        zIndex: 50,
-      }}
-    >
-      <div
-        style={{
-          background: '#161b22',
-          borderRadius: 12,
-          padding: 20,
-          width: 'min(92vw, 860px)',
-          maxHeight: '94vh',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 14,
-          border: '1px solid #30363d',
-        }}
-      >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <strong>Crop background image</strong>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button
-              onClick={() => switchAspect('1:1')}
-              style={{
-                padding: '6px 12px',
-                borderRadius: 6,
-                border: '1px solid #30363d',
-                background: aspect === '1:1' ? '#1f6feb' : '#21262d',
-                color: '#fff',
-              }}
-            >
-              1:1
-            </button>
-            <button
-              onClick={() => switchAspect('9:16')}
-              style={{
-                padding: '6px 12px',
-                borderRadius: 6,
-                border: '1px solid #30363d',
-                background: aspect === '9:16' ? '#1f6feb' : '#21262d',
-                color: '#fff',
-              }}
-            >
+    <div className="modal-backdrop" role="presentation">
+      <div className="modal" role="dialog" aria-modal="true" aria-label="Crop background image">
+        <div className="modal__head">
+          <h2 className="modal__title">Crop background image</h2>
+          <div className="segmented" role="group" aria-label="Crop aspect ratio">
+            <button type="button" aria-pressed={aspect === '9:16'} onClick={() => switchAspect('9:16')}>
               9:16
+            </button>
+            <button type="button" aria-pressed={aspect === '1:1'} onClick={() => switchAspect('1:1')}>
+              1:1
             </button>
           </div>
         </div>
+
         <div
           ref={containerRef}
+          className="modal__canvas"
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}
           onPointerCancel={onPointerUp}
-          style={{
-            position: 'relative',
-            width: '100%',
-            height: 'min(60vh, 540px)',
-            overflow: 'hidden',
-            borderRadius: 8,
-            background: '#0b0f14',
-            touchAction: 'none',
-            userSelect: 'none',
-            cursor: 'move',
-          }}
         >
           <img
             src={image.src}
@@ -275,10 +234,10 @@ export default function CropModal({ image, defaultAspect, onAspectChange, onConf
               pointerEvents: 'none',
             }}
           />
-          <div style={{ position: 'absolute', left: 0, top: 0, width: rect.x, height: ch, background: 'rgba(0,0,0,0.62)' }} />
-          <div style={{ position: 'absolute', left: rect.x + rect.w, top: 0, width: cw - rect.x - rect.w, height: ch, background: 'rgba(0,0,0,0.62)' }} />
-          <div style={{ position: 'absolute', left: rect.x, top: 0, width: rect.w, height: rect.y, background: 'rgba(0,0,0,0.62)' }} />
-          <div style={{ position: 'absolute', left: rect.x, top: rect.y + rect.h, width: rect.w, height: ch - rect.y - rect.h, background: 'rgba(0,0,0,0.62)' }} />
+          <div style={{ position: 'absolute', left: 0, top: 0, width: rect.x, height: ch, background: 'var(--scrim)' }} />
+          <div style={{ position: 'absolute', left: rect.x + rect.w, top: 0, width: cw - rect.x - rect.w, height: ch, background: 'var(--scrim)' }} />
+          <div style={{ position: 'absolute', left: rect.x, top: 0, width: rect.w, height: rect.y, background: 'var(--scrim)' }} />
+          <div style={{ position: 'absolute', left: rect.x, top: rect.y + rect.h, width: rect.w, height: ch - rect.y - rect.h, background: 'var(--scrim)' }} />
           <div
             style={{
               position: 'absolute',
@@ -286,8 +245,7 @@ export default function CropModal({ image, defaultAspect, onAspectChange, onConf
               top: rect.y,
               width: rect.w,
               height: rect.h,
-              border: '2px solid #60a5fa',
-              boxShadow: '0 0 0 1px rgba(0,0,0,0.5) inset',
+              border: '2px solid var(--accent)',
               pointerEvents: 'none',
             }}
           />
@@ -307,22 +265,23 @@ export default function CropModal({ image, defaultAspect, onAspectChange, onConf
                 top: hy - HANDLE_PX / 2,
                 width: HANDLE_PX,
                 height: HANDLE_PX,
-                background: '#ffffff',
-                border: '2px solid #60a5fa',
+                background: 'var(--surface-raised)',
+                border: '2px solid var(--accent)',
                 borderRadius: 3,
                 boxSizing: 'border-box',
               }}
             />
           ))}
         </div>
-        <div style={{ fontSize: 12, opacity: 0.75 }}>
-          Drag inside the frame to move · drag a corner handle to resize (aspect locked).
-        </div>
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
-          <button onClick={onCancel} style={{ padding: '8px 14px', background: '#21262d', color: '#fff', border: '1px solid #30363d', borderRadius: 6 }}>
+
+        <div className="modal__foot">
+          <p className="modal__hint">
+            Drag inside the frame to move it, or drag a corner to resize. The aspect stays locked to the output format.
+          </p>
+          <button type="button" className="btn btn--secondary" onClick={onCancel}>
             Cancel
           </button>
-          <button onClick={confirm} style={{ padding: '8px 14px', background: '#1f6feb', color: '#fff', border: 'none', borderRadius: 6, fontWeight: 600 }}>
+          <button type="button" className="btn btn--primary" onClick={confirm}>
             Apply crop
           </button>
         </div>

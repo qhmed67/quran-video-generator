@@ -6,6 +6,8 @@ export interface ClipPlayer {
   pause: () => void;
   stop: () => void;
   timeSeconds: () => number;
+  /** Seek to an offset measured from the start of the clip, not the start of the file. */
+  seek: (offsetSeconds: number) => void;
 }
 
 function waitForSeekable(
@@ -93,10 +95,14 @@ export async function playClip(
       element.load();
     },
     timeSeconds: () => Math.max(0, element.currentTime - target),
+    seek: (offsetSeconds: number) => {
+      const clamped = clampSeconds(offsetSeconds);
+      const withinClip = endAt !== null ? Math.min(clamped, endAt) : clamped;
+      element.currentTime = target + withinClip;
+    },
   };
 }
 
 export function seekTo(player: ClipPlayer, offsetSeconds: number): void {
-  const el = player.element;
-  el.currentTime = clampSeconds(offsetSeconds);
+  player.seek(offsetSeconds);
 }
