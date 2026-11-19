@@ -12,7 +12,7 @@ page.on('console', (m) => {
 });
 page.on('pageerror', (e) => console.error('[pageerror]', e.message));
 await page.goto(url, { waitUntil: 'networkidle' });
-await page.waitForFunction(() => (window).__bench !== undefined, null, { timeout: 120_000 });
-const results = await page.evaluate(() => (window).__bench);
+await page.waitForFunction(() => window.__bench !== undefined, null, { timeout: 120_000 });
+const results = await page.evaluate(() => window.__bench);
 console.log(JSON.stringify(results, null, 2));
 await browser.close();

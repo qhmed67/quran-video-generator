@@ -110,16 +110,25 @@ function devProxy(env: Record<string, string>): Plugin {
           );
           res.setHeader('Access-Control-Allow-Origin', '*');
           res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
-          res.setHeader('Cache-Control', upstream.headers.get('cache-control') ?? 'public, max-age=300');
+          res.setHeader(
+            'Cache-Control',
+            upstream.headers.get('cache-control') ?? 'public, max-age=300',
+          );
           const contentRange = upstream.headers.get('content-range');
           if (contentRange) res.setHeader('Content-Range', contentRange);
           const acceptRanges = upstream.headers.get('accept-ranges');
           if (acceptRanges) res.setHeader('Accept-Ranges', acceptRanges);
           const contentLength = upstream.headers.get('content-length');
           if (contentLength) res.setHeader('Content-Length', contentLength);
-          const readable = Readable.fromWeb(body as unknown as import('node:stream/web').ReadableStream);
-          readable.on('error', () => { if (!res.writableEnded) res.destroy(); });
-          res.on('close', () => { readable.destroy(); });
+          const readable = Readable.fromWeb(
+            body as unknown as import('node:stream/web').ReadableStream,
+          );
+          readable.on('error', () => {
+            if (!res.writableEnded) res.destroy();
+          });
+          res.on('close', () => {
+            readable.destroy();
+          });
           readable.pipe(res);
         } catch {
           res.statusCode = 502;

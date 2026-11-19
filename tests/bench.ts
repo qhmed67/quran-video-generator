@@ -13,12 +13,16 @@
 import { renderFrame } from '../src/render/renderFrame';
 import type { FrameRenderOptions } from '../src/render/renderFrame';
 import { drawBackground, GRADIENT_PRESETS } from '../src/render/background';
-import type { CaptionTimeline, VerseTimelineEntry, WordSegmentSeconds } from '../src/lib/types/timeline';
+import type {
+  CaptionTimeline,
+  VerseTimelineEntry,
+  WordSegmentSeconds,
+} from '../src/lib/types/timeline';
 import type { FontSet } from '../src/render/fonts';
 
 const FONT: FontSet = {
   uthmani: "'KFGQPC HAFS Uthmanic Script', 'Noto Naskh Arabic', serif",
-  translation: "system-ui, -apple-system, sans-serif",
+  translation: 'system-ui, -apple-system, sans-serif',
   uthmaniLoaded: true,
 };
 
@@ -63,7 +67,10 @@ function buildTimeline(): CaptionTimeline {
       versesTo: AYAT.length,
       audioUrl: 'bench.mp3',
       clipStartOffsetSeconds: 0,
-      captions: { uthmani: true, translation: { enabled: true, translationId: 131, language: 'en' } },
+      captions: {
+        uthmani: true,
+        translation: { enabled: true, translationId: 131, language: 'en' },
+      },
     },
     verses,
     fade: { inSeconds: 0.4, outSeconds: 0.4 },
@@ -79,7 +86,11 @@ interface FrameOpts {
   frameHeight?: number;
 }
 
-function makeOptions(canvas: HTMLCanvasElement, timeline: CaptionTimeline, o: FrameOpts): FrameRenderOptions {
+function makeOptions(
+  canvas: HTMLCanvasElement,
+  timeline: CaptionTimeline,
+  o: FrameOpts,
+): FrameRenderOptions {
   const w = o.frameWidth ?? canvas.width;
   const h = o.frameHeight ?? canvas.height;
   return {
@@ -87,7 +98,12 @@ function makeOptions(canvas: HTMLCanvasElement, timeline: CaptionTimeline, o: Fr
     timeline,
     captionsOn: { uthmani: true, translation: o.translation },
     fonts: FONT,
-    bounds: { x: Math.round(w * 0.05), y: Math.round(h * 0.22), width: Math.round(w * 0.9), height: Math.round(h * 0.56) },
+    bounds: {
+      x: Math.round(w * 0.05),
+      y: Math.round(h * 0.22),
+      width: Math.round(w * 0.9),
+      height: Math.round(h * 0.56),
+    },
     scrimEnabled: o.scrim,
     wordHighlightEnabled: o.highlight,
     maxWordsPerScreen: 0,
@@ -149,15 +165,70 @@ async function main() {
   const results: Record<string, unknown> = {};
 
   const scale = 0.5;
-  const runs: Array<{ name: string; w: number; h: number; o: FrameOpts; mode: 'walk' | 'static' }> = [
-    { name: 'full/plain', w: 1080, h: 1920, o: { highlight: false, translation: false, scrim: false }, mode: 'walk' },
-    { name: 'full/highlight', w: 1080, h: 1920, o: { highlight: true, translation: false, scrim: false }, mode: 'walk' },
-    { name: 'full/highlight+translation+scrim', w: 1080, h: 1920, o: { highlight: true, translation: true, scrim: true }, mode: 'walk' },
-    { name: 'full/plain/static', w: 1080, h: 1920, o: { highlight: false, translation: false, scrim: false }, mode: 'static' },
-    { name: 'half/plain', w: 540, h: 960, o: { highlight: false, translation: false, scrim: false, frameWidth: 1080, frameHeight: 1920 }, mode: 'walk' },
-    { name: 'half/highlight', w: 540, h: 960, o: { highlight: true, translation: false, scrim: false, frameWidth: 1080, frameHeight: 1920 }, mode: 'walk' },
-    { name: 'half/highlight+translation+scrim', w: 540, h: 960, o: { highlight: true, translation: true, scrim: true, frameWidth: 1080, frameHeight: 1920 }, mode: 'walk' },
-  ];
+  const runs: Array<{ name: string; w: number; h: number; o: FrameOpts; mode: 'walk' | 'static' }> =
+    [
+      {
+        name: 'full/plain',
+        w: 1080,
+        h: 1920,
+        o: { highlight: false, translation: false, scrim: false },
+        mode: 'walk',
+      },
+      {
+        name: 'full/highlight',
+        w: 1080,
+        h: 1920,
+        o: { highlight: true, translation: false, scrim: false },
+        mode: 'walk',
+      },
+      {
+        name: 'full/highlight+translation+scrim',
+        w: 1080,
+        h: 1920,
+        o: { highlight: true, translation: true, scrim: true },
+        mode: 'walk',
+      },
+      {
+        name: 'full/plain/static',
+        w: 1080,
+        h: 1920,
+        o: { highlight: false, translation: false, scrim: false },
+        mode: 'static',
+      },
+      {
+        name: 'half/plain',
+        w: 540,
+        h: 960,
+        o: {
+          highlight: false,
+          translation: false,
+          scrim: false,
+          frameWidth: 1080,
+          frameHeight: 1920,
+        },
+        mode: 'walk',
+      },
+      {
+        name: 'half/highlight',
+        w: 540,
+        h: 960,
+        o: {
+          highlight: true,
+          translation: false,
+          scrim: false,
+          frameWidth: 1080,
+          frameHeight: 1920,
+        },
+        mode: 'walk',
+      },
+      {
+        name: 'half/highlight+translation+scrim',
+        w: 540,
+        h: 960,
+        o: { highlight: true, translation: true, scrim: true, frameWidth: 1080, frameHeight: 1920 },
+        mode: 'walk',
+      },
+    ];
 
   for (const run of runs) {
     canvas.width = run.w;

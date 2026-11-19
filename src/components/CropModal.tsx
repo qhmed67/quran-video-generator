@@ -42,14 +42,26 @@ interface Props {
 
 const HANDLE_PX = 16;
 
-export default function CropModal({ image, defaultAspect, onAspectChange, onConfirm, onCancel }: Props) {
+export default function CropModal({
+  image,
+  defaultAspect,
+  onAspectChange,
+  onConfirm,
+  onCancel,
+}: Props) {
   const [aspect, setAspect] = useState<CropAspect>(defaultAspect);
   const [crop, setCrop] = useState<CropRect>(() =>
     initCrop(image.naturalWidth, image.naturalHeight, defaultAspect),
   );
   const [view, setView] = useState({ dx: 0, dy: 0, dw: 0, dh: 0, scale: 1 });
   const containerRef = useRef<HTMLDivElement>(null);
-  const dragRef = useRef<{ mode: 'move' | 'resize'; corner: string; startX: number; startY: number; orig: CropRect } | null>(null);
+  const dragRef = useRef<{
+    mode: 'move' | 'resize';
+    corner: string;
+    startX: number;
+    startY: number;
+    orig: CropRect;
+  } | null>(null);
 
   useEffect(() => {
     if (defaultAspect === aspect) return;
@@ -204,10 +216,18 @@ export default function CropModal({ image, defaultAspect, onAspectChange, onConf
         <div className="modal__head">
           <h2 className="modal__title">Crop background image</h2>
           <div className="segmented" role="group" aria-label="Crop aspect ratio">
-            <button type="button" aria-pressed={aspect === '9:16'} onClick={() => switchAspect('9:16')}>
+            <button
+              type="button"
+              aria-pressed={aspect === '9:16'}
+              onClick={() => switchAspect('9:16')}
+            >
               9:16
             </button>
-            <button type="button" aria-pressed={aspect === '1:1'} onClick={() => switchAspect('1:1')}>
+            <button
+              type="button"
+              aria-pressed={aspect === '1:1'}
+              onClick={() => switchAspect('1:1')}
+            >
               1:1
             </button>
           </div>
@@ -234,10 +254,46 @@ export default function CropModal({ image, defaultAspect, onAspectChange, onConf
               pointerEvents: 'none',
             }}
           />
-          <div style={{ position: 'absolute', left: 0, top: 0, width: rect.x, height: ch, background: 'var(--scrim)' }} />
-          <div style={{ position: 'absolute', left: rect.x + rect.w, top: 0, width: cw - rect.x - rect.w, height: ch, background: 'var(--scrim)' }} />
-          <div style={{ position: 'absolute', left: rect.x, top: 0, width: rect.w, height: rect.y, background: 'var(--scrim)' }} />
-          <div style={{ position: 'absolute', left: rect.x, top: rect.y + rect.h, width: rect.w, height: ch - rect.y - rect.h, background: 'var(--scrim)' }} />
+          <div
+            style={{
+              position: 'absolute',
+              left: 0,
+              top: 0,
+              width: rect.x,
+              height: ch,
+              background: 'var(--scrim)',
+            }}
+          />
+          <div
+            style={{
+              position: 'absolute',
+              left: rect.x + rect.w,
+              top: 0,
+              width: cw - rect.x - rect.w,
+              height: ch,
+              background: 'var(--scrim)',
+            }}
+          />
+          <div
+            style={{
+              position: 'absolute',
+              left: rect.x,
+              top: 0,
+              width: rect.w,
+              height: rect.y,
+              background: 'var(--scrim)',
+            }}
+          />
+          <div
+            style={{
+              position: 'absolute',
+              left: rect.x,
+              top: rect.y + rect.h,
+              width: rect.w,
+              height: ch - rect.y - rect.h,
+              background: 'var(--scrim)',
+            }}
+          />
           <div
             style={{
               position: 'absolute',
@@ -276,7 +332,8 @@ export default function CropModal({ image, defaultAspect, onAspectChange, onConf
 
         <div className="modal__foot">
           <p className="modal__hint">
-            Drag inside the frame to move it, or drag a corner to resize. The aspect stays locked to the output format.
+            Drag inside the frame to move it, or drag a corner to resize. The aspect stays locked to
+            the output format.
           </p>
           <button type="button" className="btn btn--secondary" onClick={onCancel}>
             Cancel

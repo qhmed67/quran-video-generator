@@ -25,13 +25,18 @@ const COPY: Record<Lang, Copy> = {
     nav: 'Quranic Video Generator',
     eyebrow: 'From mushaf to reel',
     title: 'Word-synced Qur’an reels, cut straight from the mushaf.',
-    lede:
-      'Pick a surah range and a reciter. Captions follow the recitation — word by word when the reciter’s timing supports it, verse by verse when it doesn’t — set in the Uthmani script and exported as a finished MP4.',
+    lede: 'Pick a surah range and a reciter. Captions follow the recitation — word by word when the reciter’s timing supports it, verse by verse when it doesn’t — set in the Uthmani script and exported as a finished MP4.',
     cta: 'Open the studio',
     hint: 'No account, no upload queue. The video renders in this browser.',
     facts: [
-      { name: 'Uthmani script', desc: 'Captions are set in KFGQPC Hafs, the face the mushaf itself uses.' },
-      { name: 'Two formats', desc: 'Vertical 9:16 for reels, square 1:1 for posts, both 1080 px wide.' },
+      {
+        name: 'Uthmani script',
+        desc: 'Captions are set in KFGQPC Hafs, the face the mushaf itself uses.',
+      },
+      {
+        name: 'Two formats',
+        desc: 'Vertical 9:16 for reels, square 1:1 for posts, both 1080 px wide.',
+      },
       {
         name: 'Honest about timing',
         desc: 'Per-word segments from the reciter drive the highlight; where they are missing, ayat stay verse-accurate and the studio says so.',
@@ -39,8 +44,7 @@ const COPY: Record<Lang, Copy> = {
     ],
     previewLabel: 'Exported frame · Surah Qaf, ayah 45',
     verseRef: 'Surah Qaf · 45',
-    verse:
-      'نَحْنُ أَعْلَمُ بِمَا يَقُولُونَ ۖ وَمَا أَنتَ عَلَيْهِم بِجَبَّارٍ ۖ فَذَكِّرْ بِالْقُرْآنِ مَن يَخَافُ وَعِيدِ',
+    verse: 'نَحْنُ أَعْلَمُ بِمَا يَقُولُونَ ۖ وَمَا أَنتَ عَلَيْهِم بِجَبَّارٍ ۖ فَذَكِّرْ بِالْقُرْآنِ مَن يَخَافُ وَعِيدِ',
     ayahNumber: '٤٥',
     footer: 'Built with love for the Ummah.',
   },
@@ -48,8 +52,7 @@ const COPY: Record<Lang, Copy> = {
     nav: 'مولد الفيديو القرآني',
     eyebrow: 'من المصحف إلى الفيديو',
     title: 'فيديوهات قرآنية تتزامن كلماتها مع التلاوة، من المصحف مباشرة.',
-    lede:
-      'اختر نطاق الآيات والقارئ. تتبع الكلمات التلاوة — كلمة بكلمة عند توفر توقيت الكلمات، وآية بآية عند غيابه — بخط المصحف العثماني، ثم تُصدَّر فيديو MP4 جاهزًا.',
+    lede: 'اختر نطاق الآيات والقارئ. تتبع الكلمات التلاوة — كلمة بكلمة عند توفر توقيت الكلمات، وآية بآية عند غيابه — بخط المصحف العثماني، ثم تُصدَّر فيديو MP4 جاهزًا.',
     cta: 'افتح الاستوديو',
     hint: 'بدون حساب ولا طابور رفع. يُصدَّر الفيديو داخل هذا المتصفح.',
     facts: [
@@ -62,8 +65,7 @@ const COPY: Record<Lang, Copy> = {
     ],
     previewLabel: 'إطار مُصدَّر · سورة ق، الآية ٤٥',
     verseRef: 'سورة ق · ٤٥',
-    verse:
-      'نَحْنُ أَعْلَمُ بِمَا يَقُولُونَ ۖ وَمَا أَنتَ عَلَيْهِم بِجَبَّارٍ ۖ فَذَكِّرْ بِالْقُرْآنِ مَن يَخَافُ وَعِيدِ',
+    verse: 'نَحْنُ أَعْلَمُ بِمَا يَقُولُونَ ۖ وَمَا أَنتَ عَلَيْهِم بِجَبَّارٍ ۖ فَذَكِّرْ بِالْقُرْآنِ مَن يَخَافُ وَعِيدِ',
     ayahNumber: '٤٥',
     footer: 'صُنع بحب للأمة.',
   },
@@ -101,10 +103,20 @@ export default function Landing() {
         </a>
         <div className="landing__nav-spacer" />
         <div className="lang-toggle" role="group" aria-label="Language">
-          <button type="button" aria-pressed={lang === 'ar'} onClick={() => setLang('ar')} lang="ar">
+          <button
+            type="button"
+            aria-pressed={lang === 'ar'}
+            onClick={() => setLang('ar')}
+            lang="ar"
+          >
             عربي
           </button>
-          <button type="button" aria-pressed={lang === 'en'} onClick={() => setLang('en')} lang="en">
+          <button
+            type="button"
+            aria-pressed={lang === 'en'}
+            onClick={() => setLang('en')}
+            lang="en"
+          >
             EN
           </button>
         </div>
@@ -124,10 +136,14 @@ export default function Landing() {
             <span className="rosette" aria-hidden="true" />
             {copy.eyebrow}
           </p>
-          <h1 className="landing__title" dir={rtl ? 'rtl' : 'ltr'}>{copy.title}</h1>
+          <h1 className="landing__title" dir={rtl ? 'rtl' : 'ltr'}>
+            {copy.title}
+          </h1>
           <p className="landing__lede">{copy.lede}</p>
           <div className="landing__cta">
-            <a className="btn btn--primary" href="#/studio">{copy.cta}</a>
+            <a className="btn btn--primary" href="#/studio">
+              {copy.cta}
+            </a>
           </div>
           <p className="landing__hint">{copy.hint}</p>
           <ul className="facts">
@@ -151,7 +167,9 @@ export default function Landing() {
             </div>
             <p className="reel__verse">
               {copy.verse}
-              <span className="reel__ayah" aria-hidden="true">{copy.ayahNumber}</span>
+              <span className="reel__ayah" aria-hidden="true">
+                {copy.ayahNumber}
+              </span>
             </p>
             <div className="reel__bottom">
               <div className="reel__ribbon" aria-hidden="true">

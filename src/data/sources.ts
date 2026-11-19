@@ -1,11 +1,9 @@
-import type {
-  QfChapterAudioFile,
-  QfChapterReciter,
-  VerseRange,
-} from './types';
+import type { QfChapterAudioFile, QfChapterReciter, VerseRange } from './types';
 
 const PROXY_BASE = '/api/proxy';
-const QF_BASE = (import.meta.env.VITE_QF_API_BASE as string | undefined) ?? 'https://apis.quran.foundation/content/api/v4';
+const QF_BASE =
+  (import.meta.env.VITE_QF_API_BASE as string | undefined) ??
+  'https://apis.quran.foundation/content/api/v4';
 
 export function proxiedUrl(targetUrl: string): string {
   return `${PROXY_BASE}?url=${encodeURIComponent(targetUrl)}`;
@@ -64,7 +62,9 @@ export async function fetchQfUthmani(
       .map((v) => ({ verseKey: v.verse_key, textUthmani: v.text_uthmani }));
   } catch {
     const params = new URLSearchParams({ chapter_number: String(range.surah) });
-    const res = await fetch(`https://api.quran.com/api/v4/quran/verses/uthmani?${params.toString()}`);
+    const res = await fetch(
+      `https://api.quran.com/api/v4/quran/verses/uthmani?${params.toString()}`,
+    );
     if (!res.ok) throw new Error('failed to fetch uthmani text');
     const data = (await res.json()) as {
       verses: { verse_key: string; text_uthmani: string }[];

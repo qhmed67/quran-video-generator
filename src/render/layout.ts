@@ -95,7 +95,19 @@ export function layoutRtlRows(opts: {
   align: HorizontalAlign;
   fontFamily: string;
 }): RtlLayoutResult {
-  const { ctx, words, rowWidth, rowHeight, fontSize, maxRows, marginX, startY, rowGap, align, fontFamily } = opts;
+  const {
+    ctx,
+    words,
+    rowWidth,
+    rowHeight,
+    fontSize,
+    maxRows,
+    marginX,
+    startY,
+    rowGap,
+    align,
+    fontFamily,
+  } = opts;
   ctx.font = `400 ${fontSize}px ${fontFamily}`;
   const gap = wordGapFor(fontSize);
   const safeLeft = marginX;

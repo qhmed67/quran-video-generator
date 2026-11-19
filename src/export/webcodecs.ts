@@ -42,12 +42,22 @@ interface AudioCodecChoice {
   sampleRate: number;
 }
 
-async function pickVideoCodec(width: number, height: number, fps: number): Promise<VideoCodecChoice> {
+async function pickVideoCodec(
+  width: number,
+  height: number,
+  fps: number,
+): Promise<VideoCodecChoice> {
   const base = { width, height, bitrate: VIDEO_BITRATE, framerate: fps };
   const candidates: VideoCodecChoice[] = [
-    { config: { codec: 'avc1.640033', ...base, hardwareAcceleration: 'prefer-hardware' }, muxerCodec: 'avc' },
+    {
+      config: { codec: 'avc1.640033', ...base, hardwareAcceleration: 'prefer-hardware' },
+      muxerCodec: 'avc',
+    },
     { config: { codec: 'avc1.640033', ...base }, muxerCodec: 'avc' },
-    { config: { codec: 'avc1.640033', ...base, hardwareAcceleration: 'prefer-software' }, muxerCodec: 'avc' },
+    {
+      config: { codec: 'avc1.640033', ...base, hardwareAcceleration: 'prefer-software' },
+      muxerCodec: 'avc',
+    },
     { config: { codec: 'vp09.00.10.08', ...base }, muxerCodec: 'vp9' },
     { config: { codec: 'av01.0.05M.08', ...base }, muxerCodec: 'av1' },
   ];
@@ -59,20 +69,28 @@ async function pickVideoCodec(width: number, height: number, fps: number): Promi
       // try the next candidate
     }
   }
-  throw new Error(
-    'no supported video codec in this browser (tried avc1.640033, vp9, av1)',
-  );
+  throw new Error('no supported video codec in this browser (tried avc1.640033, vp9, av1)');
 }
 
 async function pickAudioCodec(): Promise<AudioCodecChoice | null> {
   const candidates: AudioCodecChoice[] = [
     {
-      config: { codec: 'mp4a.40.2', sampleRate: 44_100, numberOfChannels: AUDIO_CHANNELS, bitrate: AUDIO_BITRATE },
+      config: {
+        codec: 'mp4a.40.2',
+        sampleRate: 44_100,
+        numberOfChannels: AUDIO_CHANNELS,
+        bitrate: AUDIO_BITRATE,
+      },
       muxerCodec: 'aac',
       sampleRate: 44_100,
     },
     {
-      config: { codec: 'opus', sampleRate: 48_000, numberOfChannels: AUDIO_CHANNELS, bitrate: AUDIO_BITRATE },
+      config: {
+        codec: 'opus',
+        sampleRate: 48_000,
+        numberOfChannels: AUDIO_CHANNELS,
+        bitrate: AUDIO_BITRATE,
+      },
       muxerCodec: 'opus',
       sampleRate: 48_000,
     },
@@ -273,7 +291,11 @@ interface LoadedAudio {
 const FULL_DECODE_MAX_BYTES = 30 * 1024 * 1024;
 const RANGE_MARGIN_SECONDS = 5;
 
-async function fetchRange(url: string, start: number, end: number): Promise<{ status: number; headers: Headers; bytes: Uint8Array }> {
+async function fetchRange(
+  url: string,
+  start: number,
+  end: number,
+): Promise<{ status: number; headers: Headers; bytes: Uint8Array }> {
   const res = await fetch(url, { headers: { Range: `bytes=${start}-${end}` } });
   const bytes = new Uint8Array(await res.arrayBuffer());
   return { status: res.status, headers: res.headers, bytes };
@@ -312,7 +334,9 @@ async function loadAudioSliceByRange(
 ): Promise<LoadedAudio> {
   const head = await fetchRange(url, 0, 65_535);
   if (head.status !== 206 || head.bytes.byteLength < 1024) {
-    throw new Error(`range requests not supported (HTTP ${head.status}, ${head.bytes.byteLength} bytes)`);
+    throw new Error(
+      `range requests not supported (HTTP ${head.status}, ${head.bytes.byteLength} bytes)`,
+    );
   }
   const headAudioStart = skipId3(head.bytes);
   const sync = findFrameSync(head.bytes, headAudioStart);
@@ -324,7 +348,10 @@ async function loadAudioSliceByRange(
   const bytesPerSecond = (frameInfo.bitrateKbps * 1000) / 8;
   const totalSize = parseContentRangeTotal(head.headers) ?? head.bytes.byteLength;
 
-  let startByte = Math.max(0, Math.floor((clipStartSeconds - RANGE_MARGIN_SECONDS) * bytesPerSecond));
+  let startByte = Math.max(
+    0,
+    Math.floor((clipStartSeconds - RANGE_MARGIN_SECONDS) * bytesPerSecond),
+  );
   let endByte = Math.min(
     Math.max(totalSize - 1, startByte),
     Math.ceil((clipStartSeconds + clipDurationSeconds + RANGE_MARGIN_SECONDS) * bytesPerSecond),
@@ -336,7 +363,9 @@ async function loadAudioSliceByRange(
       const slice = await fetchRange(url, startByte, endByte);
       if (slice.status !== 206) throw new Error(`range fetch failed (HTTP ${slice.status})`);
       if (slice.bytes.byteLength < 1024) {
-        throw new Error(`range slice too small: expected ~${endByte - startByte + 1} bytes, got ${slice.bytes.byteLength} (content-range: ${slice.headers.get('content-range') ?? 'n/a'})`);
+        throw new Error(
+          `range slice too small: expected ~${endByte - startByte + 1} bytes, got ${slice.bytes.byteLength} (content-range: ${slice.headers.get('content-range') ?? 'n/a'})`,
+        );
       }
       const sliceAudioStart = skipId3(slice.bytes);
       const sliceSync = findFrameSync(slice.bytes, sliceAudioStart);
@@ -370,9 +399,7 @@ async function loadAudioSliceByRange(
       lastError = err;
     }
   }
-  throw lastError instanceof Error
-    ? lastError
-    : new Error('failed to load audio slice');
+  throw lastError instanceof Error ? lastError : new Error('failed to load audio slice');
 }
 
 /**
@@ -406,9 +433,7 @@ async function loadAudioBuffer(
       console.warn(`audio load attempt failed: ${(err as Error).message}`);
     }
   }
-  throw lastError instanceof Error
-    ? lastError
-    : new Error('audio load failed');
+  throw lastError instanceof Error ? lastError : new Error('audio load failed');
 }
 
 /**
@@ -500,7 +525,8 @@ export async function encodeVideoToMp4(opts: EncodeVideoOptions): Promise<Encode
 
   const width = opts.width & ~1;
   const height = opts.height & ~1;
-  if (width <= 0 || height <= 0) throw new Error(`invalid export dimensions ${opts.width}x${opts.height}`);
+  if (width <= 0 || height <= 0)
+    throw new Error(`invalid export dimensions ${opts.width}x${opts.height}`);
 
   const videoChoice = await pickVideoCodec(width, height, fps);
   const audioChoice = await pickAudioCodec();
@@ -542,7 +568,11 @@ export async function encodeVideoToMp4(opts: EncodeVideoOptions): Promise<Encode
     video: { codec: videoChoice.muxerCodec, width, height },
     audio:
       audioEncoder && audioChoice
-        ? { codec: audioChoice.muxerCodec, numberOfChannels: AUDIO_CHANNELS, sampleRate: audioChoice.sampleRate }
+        ? {
+            codec: audioChoice.muxerCodec,
+            numberOfChannels: AUDIO_CHANNELS,
+            sampleRate: audioChoice.sampleRate,
+          }
         : undefined,
     fastStart: 'in-memory',
     firstTimestampBehavior: 'offset',

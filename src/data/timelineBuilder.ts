@@ -56,7 +56,10 @@ export function validateTimeline(t: CaptionTimeline): ValidationIssue[] {
     }
   }
   if (t.meta.granularity === 'word' && wordVerseCount === 0) {
-    issues.push({ verseKey: t.verses[0]?.verseKey ?? '', message: 'word granularity without words' });
+    issues.push({
+      verseKey: t.verses[0]?.verseKey ?? '',
+      message: 'word granularity without words',
+    });
   }
   return issues;
 }

@@ -11,11 +11,27 @@ import { GRADIENT_PRESETS, drawBackground } from './render/background';
 import type { BgImage, GradientPreset } from './render/background';
 import { loadFonts } from './render/fonts';
 import type { FontSet } from './render/fonts';
-import { defaultBounds, drawTransformOverlay, layoutUthmaniText, renderFrame, clearRenderCaches } from './render/renderFrame';
+import {
+  defaultBounds,
+  drawTransformOverlay,
+  layoutUthmaniText,
+  renderFrame,
+  clearRenderCaches,
+} from './render/renderFrame';
 import type { HslColor, SnapState, TextBounds } from './render/renderFrame';
 import CropModal from './components/CropModal';
 import type { CropAspect } from './components/CropModal';
-import { CloseIcon, ExportIcon, ImageIcon, MoonIcon, PauseIcon, PlayIcon, StopIcon, SunIcon, WarnIcon } from './components/icons';
+import {
+  CloseIcon,
+  ExportIcon,
+  ImageIcon,
+  MoonIcon,
+  PauseIcon,
+  PlayIcon,
+  StopIcon,
+  SunIcon,
+  WarnIcon,
+} from './components/icons';
 import { applyTheme, flipTheme, readTheme } from './lib/theme';
 import type { Theme } from './lib/theme';
 
@@ -80,8 +96,10 @@ const GRANULARITY_LABEL: Record<TimingGranularity, string> = {
 
 /** Resolver warnings are internal codes; the studio speaks in sentences. */
 const WARNING_COPY: Record<string, string> = {
-  'qf-v4 returned no timestamps for the selected range': 'This reciter has no timing data for these ayat.',
-  'qf-v4 chapter audio unavailable for this surah': 'This reciter has no chapter audio for this surah.',
+  'qf-v4 returned no timestamps for the selected range':
+    'This reciter has no timing data for these ayat.',
+  'qf-v4 chapter audio unavailable for this surah':
+    'This reciter has no chapter audio for this surah.',
   'no verified timing source; captions are estimated':
     'Caption timing is estimated rather than taken from a verified timing source.',
 };
@@ -233,10 +251,7 @@ function ColorControl({
     };
 
     const hueAngle = (hsv.h % 360) * WHEEL_DEG;
-    marker(
-      WHEEL_CENTER + Math.cos(hueAngle) * rMid,
-      WHEEL_CENTER + Math.sin(hueAngle) * rMid,
-    );
+    marker(WHEEL_CENTER + Math.cos(hueAngle) * rMid, WHEEL_CENTER + Math.sin(hueAngle) * rMid);
     marker(
       x0 + (clampPercent(hsv.s) / 100) * WHEEL_SQUARE,
       y0 + (1 - clampPercent(hsv.v) / 100) * WHEEL_SQUARE,
@@ -289,7 +304,8 @@ function ColorControl({
 
   const handlePointerUp = (e: React.PointerEvent<HTMLCanvasElement>) => {
     dragRef.current = null;
-    if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
+    if (e.currentTarget.hasPointerCapture(e.pointerId))
+      e.currentTarget.releasePointerCapture(e.pointerId);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLCanvasElement>) => {
@@ -341,7 +357,12 @@ function Notice({
       <WarnIcon />
       <span className="notice__text">{children}</span>
       {onClose && (
-        <button type="button" className="notice__close" onClick={onClose} aria-label="Dismiss message">
+        <button
+          type="button"
+          className="notice__close"
+          onClick={onClose}
+          aria-label="Dismiss message"
+        >
           <CloseIcon />
         </button>
       )}
@@ -399,15 +420,22 @@ export default function App() {
   const playerRef = useRef<ClipPlayer | null>(null);
   const playerLoadRef = useRef<ReturnType<typeof playClip> | null>(null);
   const timelineRef = useRef<CaptionTimeline | null>(null);
-  const fontsRef = useRef<FontSet>({ uthmani: 'serif', translation: 'sans-serif', uthmaniLoaded: false });
+  const fontsRef = useRef<FontSet>({
+    uthmani: 'serif',
+    translation: 'sans-serif',
+    uthmaniLoaded: false,
+  });
   const bgImageRef = useRef<BgImage>(null);
   const bgPresetRef = useRef<GradientPreset>(GRADIENT_PRESETS[0]);
   const captionsRef = useRef({ uthmani: true, translation: false });
   const boundsRef = useRef<TextBounds>(defaultBounds(1080, 1920));
   const snapRef = useRef<SnapState>({ x: false, y: false });
   const dragRef = useRef<{
-    type: 'move' | 'resize'; corner: string;
-    startX: number; startY: number; orig: TextBounds;
+    type: 'move' | 'resize';
+    corner: string;
+    startX: number;
+    startY: number;
+    orig: TextBounds;
   } | null>(null);
   const scrimRef = useRef(false);
   const wordHighlightRef = useRef(false);
@@ -447,52 +475,63 @@ export default function App() {
   // export still renders at the full logical size.
   const previewWidth = Math.max(2, Math.round(size.width * previewScale));
   const previewHeight = Math.max(2, Math.round(size.height * previewScale));
-  const totalSeconds = timeline && timeline.verses.length > 0 ? timeline.verses[timeline.verses.length - 1].endSeconds : 0;
+  const totalSeconds =
+    timeline && timeline.verses.length > 0
+      ? timeline.verses[timeline.verses.length - 1].endSeconds
+      : 0;
 
   const totalSecondsRef = useRef(0);
   totalSecondsRef.current = totalSeconds;
 
-  useEffect(() => { boundsRef.current = defaultBounds(size.width, size.height); }, [size.width, size.height]);
+  useEffect(() => {
+    boundsRef.current = defaultBounds(size.width, size.height);
+  }, [size.width, size.height]);
 
   /* ── Data ── */
 
   const buildSeq = useRef(0);
 
-  const build = useCallback(async (rid: string, s: number, f: number, t: number, trans: boolean) => {
-    if (!rid) return;
-    if (!Number.isInteger(s) || s < 1 || s > 114) {
-      setError('Surah must be a number between 1 and 114.');
-      return;
-    }
-    if (!Number.isInteger(f) || !Number.isInteger(t) || f < 1 || t < f) {
-      setError('The ayah range is invalid: “From” must be at least 1 and no higher than “To”.');
-      return;
-    }
-    const seq = ++buildSeq.current;
-    setIsLoading(true);
-    setError(null);
-    try {
-      const resolution = await resolveTiming({ reciterId: rid, surah: s, verses: [f, t] });
-      const tl = await buildTimeline(
-        {
-          range: { surah: s, from: f, to: t },
-          reciterId: rid,
-          captions: { uthmani: true, translation: { enabled: trans, translationId: TRANSLATION_ID, language: 'en' } },
-        },
-        resolution,
-      );
-      if (seq !== buildSeq.current) return;
-      timelineRef.current = tl;
-      setTimeline(tl);
-      setGranularity(tl.meta.granularity);
-      setNotice(buildNotice(resolution.warnings, Boolean(tl.meta.audioUrl)));
-    } catch (err) {
-      if (seq !== buildSeq.current) return;
-      setError((err as Error).message);
-    } finally {
-      if (seq === buildSeq.current) setIsLoading(false);
-    }
-  }, []);
+  const build = useCallback(
+    async (rid: string, s: number, f: number, t: number, trans: boolean) => {
+      if (!rid) return;
+      if (!Number.isInteger(s) || s < 1 || s > 114) {
+        setError('Surah must be a number between 1 and 114.');
+        return;
+      }
+      if (!Number.isInteger(f) || !Number.isInteger(t) || f < 1 || t < f) {
+        setError('The ayah range is invalid: “From” must be at least 1 and no higher than “To”.');
+        return;
+      }
+      const seq = ++buildSeq.current;
+      setIsLoading(true);
+      setError(null);
+      try {
+        const resolution = await resolveTiming({ reciterId: rid, surah: s, verses: [f, t] });
+        const tl = await buildTimeline(
+          {
+            range: { surah: s, from: f, to: t },
+            reciterId: rid,
+            captions: {
+              uthmani: true,
+              translation: { enabled: trans, translationId: TRANSLATION_ID, language: 'en' },
+            },
+          },
+          resolution,
+        );
+        if (seq !== buildSeq.current) return;
+        timelineRef.current = tl;
+        setTimeline(tl);
+        setGranularity(tl.meta.granularity);
+        setNotice(buildNotice(resolution.warnings, Boolean(tl.meta.audioUrl)));
+      } catch (err) {
+        if (seq !== buildSeq.current) return;
+        setError((err as Error).message);
+      } finally {
+        if (seq === buildSeq.current) setIsLoading(false);
+      }
+    },
+    [],
+  );
 
   useEffect(() => {
     fetchReciterCatalog()
@@ -527,9 +566,10 @@ export default function App() {
   // captions for the same recitation must not stop playback or rewind it.
   const clipUrl = timeline?.meta.audioUrl ?? '';
   const clipStart = timeline?.meta.clipStartOffsetSeconds ?? 0;
-  const clipEnd = timeline && timeline.verses.length > 0
-    ? timeline.verses[timeline.verses.length - 1].endSeconds
-    : undefined;
+  const clipEnd =
+    timeline && timeline.verses.length > 0
+      ? timeline.verses[timeline.verses.length - 1].endSeconds
+      : undefined;
 
   useEffect(() => {
     if (!clipUrl) return;
@@ -538,7 +578,10 @@ export default function App() {
     playerLoadRef.current = load;
     load
       .then((p) => {
-        if (cancelled) { p.stop(); return; }
+        if (cancelled) {
+          p.stop();
+          return;
+        }
         p.element.addEventListener('ended', () => setIsPlaying(false));
         playerRef.current = p;
         reportedTimeRef.current = 0;
@@ -567,7 +610,9 @@ export default function App() {
   // repaints only when this changes, when the playhead moves, or while the user
   // is dragging — a paused, untouched stage costs nothing.
   const visualKey = [
-    timeline ? `${timeline.meta.audioUrl}|${timeline.verses.length}|${timeline.meta.versesFrom}` : 'none',
+    timeline
+      ? `${timeline.meta.audioUrl}|${timeline.verses.length}|${timeline.meta.versesFrom}`
+      : 'none',
     aspect,
     uthmaniFontReady ? 'font' : 'fallback',
     translationEnabled ? 'tr' : '',
@@ -594,10 +639,7 @@ export default function App() {
       const rect = canvas.getBoundingClientRect();
       if (rect.width <= 0 || rect.height <= 0) return;
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
-      const fit = Math.min(
-        (rect.width * dpr) / size.width,
-        (rect.height * dpr) / size.height,
-      );
+      const fit = Math.min((rect.width * dpr) / size.width, (rect.height * dpr) / size.height);
       // Quantised so a resize cannot ping-pong on sub-pixel differences.
       const next = Math.min(1, Math.max(0.2, Math.round(fit * 20) / 20));
       setPreviewScale((cur) => (Math.abs(cur - next) > 0.001 ? next : cur));
@@ -633,7 +675,8 @@ export default function App() {
         scrubbingRef.current ||
         dragRef.current !== null ||
         isExportingRef.current;
-      const stale = key !== lastKey || revision !== lastRevision || !(Math.abs(t - lastTime) < 0.0005);
+      const stale =
+        key !== lastKey || revision !== lastRevision || !(Math.abs(t - lastTime) < 0.0005);
       if (stale || busy) {
         if (!isExportingRef.current) {
           const frame = frameSizeRef.current;
@@ -654,7 +697,14 @@ export default function App() {
               textColor: textColorRef.current,
               glowColor: glowColorRef.current,
               textOpacity: textOpacityRef.current,
-              drawBackground: (c) => drawBackground(c, bgPresetRef.current, bgImageRef.current, frame.width, frame.height),
+              drawBackground: (c) =>
+                drawBackground(
+                  c,
+                  bgPresetRef.current,
+                  bgImageRef.current,
+                  frame.width,
+                  frame.height,
+                ),
             });
           } else {
             ctx.setTransform(scale, 0, 0, scale, 0, 0);
@@ -671,7 +721,11 @@ export default function App() {
         lastRevision = revision;
       }
       const now = performance.now();
-      if (!scrubbingRef.current && now - lastReportRef.current > PLAYHEAD_TICK_MS && Math.abs(raw - reportedTimeRef.current) > 0.04) {
+      if (
+        !scrubbingRef.current &&
+        now - lastReportRef.current > PLAYHEAD_TICK_MS &&
+        Math.abs(raw - reportedTimeRef.current) > 0.04
+      ) {
         lastReportRef.current = now;
         reportedTimeRef.current = raw;
         setPlayhead(raw);
@@ -704,16 +758,31 @@ export default function App() {
     const t = playerRef.current?.timeSeconds() ?? 0;
     let verse: VerseTimelineEntry | null = null;
     for (const v of tl.verses) {
-      if (compareToWindow(t, v.startSeconds, v.endSeconds) === 0) { verse = v; break; }
+      if (compareToWindow(t, v.startSeconds, v.endSeconds) === 0) {
+        verse = v;
+        break;
+      }
     }
     if (!verse) return null;
-    const info = layoutUthmaniText(ctx, verse, { fonts: fontsRef.current, boxW: box.width, boxH: box.height, align: 'center', atMinFont: true });
+    const info = layoutUthmaniText(ctx, verse, {
+      fonts: fontsRef.current,
+      boxW: box.width,
+      boxH: box.height,
+      align: 'center',
+      atMinFont: true,
+    });
     return { width: info.width, height: info.height };
   };
 
   const RESIZE_CURSOR: Record<string, string> = {
-    tl: 'nwse-resize', br: 'nwse-resize', tr: 'nesw-resize', bl: 'nesw-resize',
-    l: 'ew-resize', r: 'ew-resize', t: 'ns-resize', b: 'ns-resize',
+    tl: 'nwse-resize',
+    br: 'nwse-resize',
+    tr: 'nesw-resize',
+    bl: 'nesw-resize',
+    l: 'ew-resize',
+    r: 'ew-resize',
+    t: 'ns-resize',
+    b: 'ns-resize',
   };
 
   const hitBoxHandle = (b: TextBounds, p: { x: number; y: number }): string | null => {
@@ -724,14 +793,18 @@ export default function App() {
       { id: 'bl', x: b.x, y: b.y + b.height },
       { id: 'br', x: b.x + b.width, y: b.y + b.height },
     ];
-    for (const c of corners) { if (Math.abs(p.x - c.x) <= h && Math.abs(p.y - c.y) <= h) return c.id; }
+    for (const c of corners) {
+      if (Math.abs(p.x - c.x) <= h && Math.abs(p.y - c.y) <= h) return c.id;
+    }
     const edges = [
       { id: 'l', x: b.x, y: b.y + b.height / 2 },
       { id: 'r', x: b.x + b.width, y: b.y + b.height / 2 },
       { id: 't', x: b.x + b.width / 2, y: b.y },
       { id: 'b', x: b.x + b.width / 2, y: b.y + b.height },
     ];
-    for (const c of edges) { if (Math.abs(p.x - c.x) <= h && Math.abs(p.y - c.y) <= h) return c.id; }
+    for (const c of edges) {
+      if (Math.abs(p.x - c.x) <= h && Math.abs(p.y - c.y) <= h) return c.id;
+    }
     return null;
   };
 
@@ -741,13 +814,14 @@ export default function App() {
     const d = dragRef.current;
     let cursor = 'default';
     if (d) {
-      cursor = d.type === 'move' ? 'grabbing' : RESIZE_CURSOR[d.corner] ?? 'default';
+      cursor = d.type === 'move' ? 'grabbing' : (RESIZE_CURSOR[d.corner] ?? 'default');
     } else if (transformModeRef.current) {
       const p = toLogicalPoint(clientX, clientY);
       const b = boundsRef.current;
       const corner = hitBoxHandle(b, p);
       if (corner) cursor = RESIZE_CURSOR[corner] ?? 'default';
-      else if (p.x >= b.x && p.x <= b.x + b.width && p.y >= b.y && p.y <= b.y + b.height) cursor = 'move';
+      else if (p.x >= b.x && p.x <= b.x + b.width && p.y >= b.y && p.y <= b.y + b.height)
+        cursor = 'move';
     }
     canvas.style.cursor = cursor;
   };
@@ -759,8 +833,10 @@ export default function App() {
     const p = toLogicalPoint(e.clientX, e.clientY);
     const b = boundsRef.current;
     const corner = hitBoxHandle(b, p);
-    if (corner) dragRef.current = { type: 'resize', corner, startX: p.x, startY: p.y, orig: { ...b } };
-    else if (p.x >= b.x && p.x <= b.x + b.width && p.y >= b.y && p.y <= b.y + b.height) dragRef.current = { type: 'move', corner: '', startX: p.x, startY: p.y, orig: { ...b } };
+    if (corner)
+      dragRef.current = { type: 'resize', corner, startX: p.x, startY: p.y, orig: { ...b } };
+    else if (p.x >= b.x && p.x <= b.x + b.width && p.y >= b.y && p.y <= b.y + b.height)
+      dragRef.current = { type: 'move', corner: '', startX: p.x, startY: p.y, orig: { ...b } };
     else return;
     applyCursor(e.clientX, e.clientY);
     canvas.setPointerCapture(e.pointerId);
@@ -917,7 +993,14 @@ export default function App() {
     const onKey = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null;
       const tag = target?.tagName;
-      if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA' || tag === 'BUTTON' || target?.isContentEditable) return;
+      if (
+        tag === 'INPUT' ||
+        tag === 'SELECT' ||
+        tag === 'TEXTAREA' ||
+        tag === 'BUTTON' ||
+        target?.isContentEditable
+      )
+        return;
       if (e.code === 'Space') {
         e.preventDefault();
         void handlePlayPause();
@@ -1028,9 +1111,14 @@ export default function App() {
         },
       });
       if (!result.hasAudio) {
-        setAudioWarning('This export has no audio track: the browser could not encode audio in this context.');
+        setAudioWarning(
+          'This export has no audio track: the browser could not encode audio in this context.',
+        );
       }
-      downloadBlob(result.blob, `quran-${tl.meta.surah}-${tl.meta.versesFrom}-${tl.meta.versesTo}.mp4`);
+      downloadBlob(
+        result.blob,
+        `quran-${tl.meta.surah}-${tl.meta.versesFrom}-${tl.meta.versesTo}.mp4`,
+      );
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -1072,7 +1160,9 @@ export default function App() {
         </a>
         <div className="header-spacer" />
         <div className="header-actions">
-          {granularity && granularity !== 'estimated' && <span className="badge header-granularity">{GRANULARITY_LABEL[granularity]}</span>}
+          {granularity && granularity !== 'estimated' && (
+            <span className="badge header-granularity">{GRANULARITY_LABEL[granularity]}</span>
+          )}
           {timeline && (
             <span className="badge">
               <span className="measure">{formatSeconds(totalSeconds)}</span>
@@ -1112,14 +1202,21 @@ export default function App() {
       <div className="studio">
         <aside className="rail rail--source" aria-label="Recitation source">
           <section className="rail__section">
-            <div className="section-head"><span className="section-head__title">Recitation</span></div>
+            <div className="section-head">
+              <span className="section-head__title">Recitation</span>
+            </div>
             <Field label="Reciter">
               <span className="select-wrap">
-                <select className="select" value={reciterId} onChange={(e) => setReciterId(e.target.value)}>
+                <select
+                  className="select"
+                  value={reciterId}
+                  onChange={(e) => setReciterId(e.target.value)}
+                >
                   {reciters.length === 0 && <option value="">Loading reciters…</option>}
                   {reciters.map((r) => (
                     <option key={r.id} value={String(r.id)}>
-                      {r.name}{r.style?.name ? ` · ${r.style.name}` : ''}
+                      {r.name}
+                      {r.style?.name ? ` · ${r.style.name}` : ''}
                     </option>
                   ))}
                 </select>
@@ -1168,18 +1265,31 @@ export default function App() {
           </section>
 
           <section className="rail__section">
-            <div className="section-head"><span className="section-head__title">Output</span></div>
+            <div className="section-head">
+              <span className="section-head__title">Output</span>
+            </div>
             <Field label="Format" value={`${size.width}×${size.height}`}>
               <div className="segmented" role="group" aria-label="Aspect ratio">
-                <button type="button" aria-pressed={aspect === '9:16'} onClick={() => setAspect('9:16')}>
+                <button
+                  type="button"
+                  aria-pressed={aspect === '9:16'}
+                  onClick={() => setAspect('9:16')}
+                >
                   Vertical 9:16
                 </button>
-                <button type="button" aria-pressed={aspect === '1:1'} onClick={() => setAspect('1:1')}>
+                <button
+                  type="button"
+                  aria-pressed={aspect === '1:1'}
+                  onClick={() => setAspect('1:1')}
+                >
                   Square 1:1
                 </button>
               </div>
             </Field>
-            <Field label="Words per screen" value={maxWordsPerScreen === 0 ? 'auto' : `${maxWordsPerScreen}`}>
+            <Field
+              label="Words per screen"
+              value={maxWordsPerScreen === 0 ? 'auto' : `${maxWordsPerScreen}`}
+            >
               <div className="words-row">
                 <div className="segmented" role="group" aria-label="Words per screen">
                   {[0, 1, 2, 3].map((n) => (
@@ -1217,9 +1327,12 @@ export default function App() {
           </section>
 
           <section className="rail__section">
-            <div className="section-head"><span className="section-head__title">Playback</span></div>
+            <div className="section-head">
+              <span className="section-head__title">Playback</span>
+            </div>
             <p className="rail__note">
-              Space plays and pauses, arrow keys step one second, or drag the ribbon under the frame to seek.
+              Space plays and pauses, arrow keys step one second, or drag the ribbon under the frame
+              to seek.
             </p>
             {!canPlay && !isExporting && (
               <p className="rail__note">Playback unlocks once a recitation with audio is loaded.</p>
@@ -1230,9 +1343,14 @@ export default function App() {
         <section className="stage" aria-label="Preview">
           <div className="stage-head">
             <span className="badge">
-              {aspect === '9:16' ? '9:16' : '1:1'} · <span className="measure">{size.width}×{size.height}</span>
+              {aspect === '9:16' ? '9:16' : '1:1'} ·{' '}
+              <span className="measure">
+                {size.width}×{size.height}
+              </span>
             </span>
-            {granularity === 'estimated' && <span className="badge badge--warn">Estimated timing</span>}
+            {granularity === 'estimated' && (
+              <span className="badge badge--warn">Estimated timing</span>
+            )}
             {!uthmaniFontReady && <span className="badge badge--warn">Fallback font</span>}
             <span className="stage-head__spacer" />
             {isLoading && <span className="badge badge--accent">Loading recitation…</span>}
@@ -1260,13 +1378,17 @@ export default function App() {
                     <div className="skeleton-line" />
                   </div>
                   <span className="stage-overlay__title">Loading recitation…</span>
-                  <span className="stage-overlay__hint">Fetching the verses and their timing from the reciter.</span>
+                  <span className="stage-overlay__hint">
+                    Fetching the verses and their timing from the reciter.
+                  </span>
                 </div>
               )}
               {!isLoading && !timeline && (
                 <div className="stage-overlay">
                   <span className="stage-overlay__title">No recitation loaded</span>
-                  <span className="stage-overlay__hint">Choose a reciter, a surah and an ayah range on the left to build the frame.</span>
+                  <span className="stage-overlay__hint">
+                    Choose a reciter, a surah and an ayah range on the left to build the frame.
+                  </span>
                 </div>
               )}
             </div>
@@ -1275,14 +1397,25 @@ export default function App() {
           <div className="stage-foot">
             {currentVerse ? (
               <div className="stage-foot__verse">
-                <span className="rosette" aria-hidden="true"><span>{currentVerse.ayahNumber}</span></span>
+                <span className="rosette" aria-hidden="true">
+                  <span>{currentVerse.ayahNumber}</span>
+                </span>
                 <span className="stage-foot__verse-label">
                   Ayah <span className="measure">{currentVerse.ayahNumber}</span>
-                  <span className="stage-foot__of"> of <span className="measure">{timeline?.verses.length ?? 0}</span></span>
+                  <span className="stage-foot__of">
+                    {' '}
+                    of <span className="measure">{timeline?.verses.length ?? 0}</span>
+                  </span>
                 </span>
               </div>
             ) : (
-              <span className="stage-foot__verse-label">{timeline ? 'Silence between ayat' : isLoading ? 'Loading recitation…' : 'Waiting for a recitation'}</span>
+              <span className="stage-foot__verse-label">
+                {timeline
+                  ? 'Silence between ayat'
+                  : isLoading
+                    ? 'Loading recitation…'
+                    : 'Waiting for a recitation'}
+              </span>
             )}
             <span className="stage-foot__spacer" />
             {currentVerse && !isPlaying && !isExporting && playhead < 0.05 && (
@@ -1293,7 +1426,9 @@ export default function App() {
 
         <aside className="rail rail--look" aria-label="Look and captions">
           <section className="rail__section">
-            <div className="section-head"><span className="section-head__title">Background</span></div>
+            <div className="section-head">
+              <span className="section-head__title">Background</span>
+            </div>
             <div className="swatches">
               {GRADIENT_PRESETS.map((g) => (
                 <button
@@ -1301,11 +1436,16 @@ export default function App() {
                   type="button"
                   className="swatch"
                   aria-pressed={bgId === g.id && !bgImageName}
-                  onClick={() => { setBgId(g.id); handleClearImage(); }}
+                  onClick={() => {
+                    setBgId(g.id);
+                    handleClearImage();
+                  }}
                 >
                   <span
                     className="swatch__chip"
-                    style={{ background: `linear-gradient(160deg, ${g.colors[0]}, ${g.colors[1]} 58%, ${g.colors[2]})` }}
+                    style={{
+                      background: `linear-gradient(160deg, ${g.colors[0]}, ${g.colors[1]} 58%, ${g.colors[2]})`,
+                    }}
                   />
                   <span className="swatch__label">{g.label}</span>
                 </button>
@@ -1335,11 +1475,15 @@ export default function App() {
                 </button>
               )}
             </div>
-            <p className="rail__note">Uploaded images are cropped to the frame and drawn edge to edge.</p>
+            <p className="rail__note">
+              Uploaded images are cropped to the frame and drawn edge to edge.
+            </p>
           </section>
 
           <section className="rail__section">
-            <div className="section-head"><span className="section-head__title">Captions</span></div>
+            <div className="section-head">
+              <span className="section-head__title">Captions</span>
+            </div>
             <Switch
               checked={translationEnabled}
               onChange={setTranslationEnabled}
@@ -1361,7 +1505,9 @@ export default function App() {
           </section>
 
           <section className="rail__section">
-            <div className="section-head"><span className="section-head__title">Type</span></div>
+            <div className="section-head">
+              <span className="section-head__title">Type</span>
+            </div>
             <div className="color-pair">
               <ColorControl name="Caption text" color={textColor} onChange={setTextColor} />
               <ColorControl name="Glow" color={glowColor} onChange={setGlowColor} />
@@ -1392,7 +1538,10 @@ export default function App() {
             <ExportIcon />
             <span>{exportState.label}</span>
             <span className="export-bar__track">
-              <span className="export-bar__fill" style={{ width: `${Math.round(exportProgress * 100)}%` }} />
+              <span
+                className="export-bar__fill"
+                style={{ width: `${Math.round(exportProgress * 100)}%` }}
+              />
             </span>
             <span className="export-bar__pct">{Math.round(exportProgress * 100)}%</span>
           </div>
@@ -1408,7 +1557,12 @@ export default function App() {
             >
               {isPlaying ? <PauseIcon /> : <PlayIcon />}
             </button>
-            <button type="button" className="btn btn--secondary" onClick={handleStop} disabled={!canPlay}>
+            <button
+              type="button"
+              className="btn btn--secondary"
+              onClick={handleStop}
+              disabled={!canPlay}
+            >
               <StopIcon />
               Stop
             </button>
@@ -1430,8 +1584,14 @@ export default function App() {
               onPointerUp={onScrubberUp}
               onPointerCancel={onScrubberUp}
               onKeyDown={(e) => {
-                if (e.key === 'ArrowRight') { e.preventDefault(); seekBy(1); }
-                if (e.key === 'ArrowLeft') { e.preventDefault(); seekBy(-1); }
+                if (e.key === 'ArrowRight') {
+                  e.preventDefault();
+                  seekBy(1);
+                }
+                if (e.key === 'ArrowLeft') {
+                  e.preventDefault();
+                  seekBy(-1);
+                }
               }}
             >
               <div className="ribbon__track" aria-hidden="true">

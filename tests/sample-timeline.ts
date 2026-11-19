@@ -1,5 +1,9 @@
 /** Synthetic timeline shared by the benchmark and the visual check. */
-import type { CaptionTimeline, VerseTimelineEntry, WordSegmentSeconds } from '../src/lib/types/timeline';
+import type {
+  CaptionTimeline,
+  VerseTimelineEntry,
+  WordSegmentSeconds,
+} from '../src/lib/types/timeline';
 
 const AYAT = [
   'ق ۝١ وَالْقُرْآنِ الْمَجِيدِ ۝٢ بَلْ عَجِبُوا أَن جَاءَهُم مُّنذِرٌ مِّنْهُمْ',
@@ -42,7 +46,10 @@ export function buildSampleTimeline(): CaptionTimeline {
       versesTo: AYAT.length,
       audioUrl: 'sample.mp3',
       clipStartOffsetSeconds: 0,
-      captions: { uthmani: true, translation: { enabled: true, translationId: 131, language: 'en' } },
+      captions: {
+        uthmani: true,
+        translation: { enabled: true, translationId: 131, language: 'en' },
+      },
     },
     verses,
     fade: { inSeconds: 0.4, outSeconds: 0.4 },

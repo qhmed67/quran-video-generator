@@ -15,7 +15,10 @@ await mkdir(outDir, { recursive: true });
 
 const executablePath = process.env.CHROME_PATH ?? undefined;
 const browser = await chromium.launch(executablePath ? { executablePath } : {});
-const page = await browser.newPage({ viewport: { width: 1440, height: 1000 }, deviceScaleFactor: 1 });
+const page = await browser.newPage({
+  viewport: { width: 1440, height: 1000 },
+  deviceScaleFactor: 1,
+});
 const errors = [];
 page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
 page.on('console', (m) => {
@@ -25,12 +28,13 @@ page.on('console', (m) => {
 await page.goto(url, { waitUntil: 'networkidle' });
 await page.waitForSelector('.stage-frame canvas', { timeout: 30_000 });
 
-const info = async () => page.evaluate(() => {
-  const c = document.querySelector('.stage-frame canvas');
-  if (!c) return null;
-  const r = c.getBoundingClientRect();
-  return { backing: [c.width, c.height], css: [Math.round(r.width), Math.round(r.height)] };
-});
+const info = async () =>
+  page.evaluate(() => {
+    const c = document.querySelector('.stage-frame canvas');
+    if (!c) return null;
+    const r = c.getBoundingClientRect();
+    return { backing: [c.width, c.height], css: [Math.round(r.width), Math.round(r.height)] };
+  });
 
 // Wait for a timeline to be built (the stage badge flips out of "Loading").
 await page.waitForFunction(

@@ -1,5 +1,9 @@
 import { compareToWindow } from '../lib/time';
-import type { CaptionTimeline, VerseTimelineEntry, WordSegmentSeconds } from '../lib/types/timeline';
+import type {
+  CaptionTimeline,
+  VerseTimelineEntry,
+  WordSegmentSeconds,
+} from '../lib/types/timeline';
 import type { FontSet } from './fonts';
 import {
   countArabicLetters,
@@ -94,7 +98,12 @@ export function defaultBackground(
   ctx.fillRect(0, 0, width, height);
 }
 
-function verseOpacity(verse: VerseTimelineEntry, t: number, fadeIn: number, fadeOut: number): number {
+function verseOpacity(
+  verse: VerseTimelineEntry,
+  t: number,
+  fadeIn: number,
+  fadeOut: number,
+): number {
   if (t < verse.startSeconds || t > verse.endSeconds) return 0;
   const inEnd = verse.startSeconds + fadeIn;
   const outStart = verse.endSeconds - fadeOut;
@@ -236,7 +245,13 @@ function verseCacheOf(verse: VerseTimelineEntry): VerseCache {
 const MAX_LAYOUTS_PER_VERSE = 12;
 
 function layoutCacheKey(
-  opts: { boxW: number; boxH: number; align: HorizontalAlign; atMinFont?: boolean; showAyahNumber?: boolean },
+  opts: {
+    boxW: number;
+    boxH: number;
+    align: HorizontalAlign;
+    atMinFont?: boolean;
+    showAyahNumber?: boolean;
+  },
   fonts: FontSet,
 ): string {
   return [
@@ -253,7 +268,14 @@ function layoutCacheKey(
 function buildUthmaniLayout(
   ctx: CanvasRenderingContext2D,
   verse: VerseTimelineEntry,
-  opts: { fonts: FontSet; boxW: number; boxH: number; align: HorizontalAlign; atMinFont?: boolean; showAyahNumber?: boolean },
+  opts: {
+    fonts: FontSet;
+    boxW: number;
+    boxH: number;
+    align: HorizontalAlign;
+    atMinFont?: boolean;
+    showAyahNumber?: boolean;
+  },
 ): UthmaniLayout {
   const cache = verseCacheOf(verse);
   const key = layoutCacheKey(opts, opts.fonts);
@@ -272,7 +294,14 @@ function buildUthmaniLayout(
 function computeUthmaniLayout(
   ctx: CanvasRenderingContext2D,
   verse: VerseTimelineEntry,
-  opts: { fonts: FontSet; boxW: number; boxH: number; align: HorizontalAlign; atMinFont?: boolean; showAyahNumber?: boolean },
+  opts: {
+    fonts: FontSet;
+    boxW: number;
+    boxH: number;
+    align: HorizontalAlign;
+    atMinFont?: boolean;
+    showAyahNumber?: boolean;
+  },
 ): UthmaniLayout {
   const { fonts, boxW, boxH, align, atMinFont, showAyahNumber } = opts;
   const displayWords: WordDef[] = verse.words
@@ -339,7 +368,12 @@ export function layoutUthmaniText(
   opts: { fonts: FontSet; boxW: number; boxH: number; align: HorizontalAlign; atMinFont?: boolean },
 ): UthmaniTextMeasure {
   const layout = buildUthmaniLayout(ctx, verse, opts);
-  return { width: layout.width, height: layout.height, fits: layout.fits, fontSize: layout.fontSize };
+  return {
+    width: layout.width,
+    height: layout.height,
+    fits: layout.fits,
+    fontSize: layout.fontSize,
+  };
 }
 
 /**
@@ -418,13 +452,20 @@ const MAX_TIER_RASTERS = 4;
 
 function tierRaster(key: string, pixelWidth: number, pixelHeight: number): TierCacheEntry {
   const existing = tierRasters.get(key);
-  if (existing && existing.buffer.canvas.width === pixelWidth && existing.buffer.canvas.height === pixelHeight) {
+  if (
+    existing &&
+    existing.buffer.canvas.width === pixelWidth &&
+    existing.buffer.canvas.height === pixelHeight
+  ) {
     // Refresh recency: Map keeps insertion order.
     tierRasters.delete(key);
     tierRasters.set(key, existing);
     return existing;
   }
-  const created: TierCacheEntry = { buffer: createBufferCanvas(pixelWidth, pixelHeight), painted: false };
+  const created: TierCacheEntry = {
+    buffer: createBufferCanvas(pixelWidth, pixelHeight),
+    painted: false,
+  };
   tierRasters.delete(key);
   tierRasters.set(key, created);
   while (tierRasters.size > MAX_TIER_RASTERS) {
@@ -519,7 +560,11 @@ function paintTier(
       if (filter.only !== undefined && word.index !== filter.only) continue;
       if (word.index === filter.skip) continue;
       painted = true;
-      paintWord(bctx, { index: word.index, text: word.text, x: word.x, y: blockTopRel + row.y }, style);
+      paintWord(
+        bctx,
+        { index: word.index, text: word.text, x: word.x, y: blockTopRel + row.y },
+        style,
+      );
     }
   }
   return painted;
@@ -545,7 +590,19 @@ function drawUthmaniVerse(
     deviceScale: number;
   },
 ): UthmaniBlock {
-  const { height, fonts, bounds, align, scrimEnabled, wordHighlightEnabled, textColor, glowColor, textOpacity, showAyahNumber, deviceScale } = opts;
+  const {
+    height,
+    fonts,
+    bounds,
+    align,
+    scrimEnabled,
+    wordHighlightEnabled,
+    textColor,
+    glowColor,
+    textOpacity,
+    showAyahNumber,
+    deviceScale,
+  } = opts;
   const boxX = bounds.x;
   const boxY = bounds.y;
   const boxW = bounds.width;
@@ -565,7 +622,15 @@ function drawUthmaniVerse(
   ctx.rect(0, -VERTICAL_SAFETY_PAD, boxW, boxH + 2 * VERTICAL_SAFETY_PAD);
   ctx.clip();
   if (scrimEnabled && rowCount > 0) {
-    drawScrim(ctx, { top: blockTopRel - VERTICAL_SAFETY_PAD, bottom: blockTopRel + blockHeight + VERTICAL_SAFETY_PAD }, boxW, boxH);
+    drawScrim(
+      ctx,
+      {
+        top: blockTopRel - VERTICAL_SAFETY_PAD,
+        bottom: blockTopRel + blockHeight + VERTICAL_SAFETY_PAD,
+      },
+      boxW,
+      boxH,
+    );
   }
 
   // --- Glyph pass -----------------------------------------------------
@@ -590,9 +655,10 @@ function drawUthmaniVerse(
   const pixW = Math.max(1, Math.ceil(bufW * deviceScale));
   const pixH = Math.max(1, Math.ceil(bufH * deviceScale));
 
-  const lastWordIdx = rows.length > 0 && rows[rows.length - 1].words.length > 0
-    ? rows[rows.length - 1].words[rows[rows.length - 1].words.length - 1].index
-    : -1;
+  const lastWordIdx =
+    rows.length > 0 && rows[rows.length - 1].words.length > 0
+      ? rows[rows.length - 1].words[rows[rows.length - 1].words.length - 1].index
+      : -1;
 
   // Shadows are not affected by the canvas transform, so blur radius and
   // offset are expressed in device pixels; that keeps the caption looking the
@@ -857,7 +923,11 @@ function chunkVerse(verse: VerseTimelineEntry, maxWords: number, tSeconds: numbe
     const chunks: VerseChunk[] = [];
     for (let s = 0; s < totalWords; s += maxWords) {
       const end = Math.min(s + maxWords, totalWords);
-      chunks.push({ verse: sliceChunk(verse, words, { start: s, end }), isLastChunk: end >= totalWords, firstWord: s });
+      chunks.push({
+        verse: sliceChunk(verse, words, { start: s, end }),
+        isLastChunk: end >= totalWords,
+        firstWord: s,
+      });
     }
     cached = { maxWords, chunks };
     verseChunks.set(verse, cached);
@@ -949,7 +1019,12 @@ export function renderFrame(ctx: CanvasRenderingContext2D, opts: FrameRenderOpti
     showAyahNumber = result.isLastChunk;
   }
 
-  const opacity = verseOpacity(verseWindow, tSeconds, timeline.fade.inSeconds, timeline.fade.outSeconds);
+  const opacity = verseOpacity(
+    verseWindow,
+    tSeconds,
+    timeline.fade.inSeconds,
+    timeline.fade.outSeconds,
+  );
   if (opacity <= 0) {
     ctx.restore();
     return;

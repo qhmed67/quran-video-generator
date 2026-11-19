@@ -58,7 +58,16 @@ export default async function handler(req: Request): Promise<Response> {
   };
   for (const h of ['content-range', 'accept-ranges', 'content-length', 'cache-control']) {
     const v = upstream.headers.get(h);
-    if (v) respHeaders[h === 'content-range' ? 'Content-Range' : h === 'accept-ranges' ? 'Accept-Ranges' : h === 'content-length' ? 'Content-Length' : 'Cache-Control'] = v;
+    if (v)
+      respHeaders[
+        h === 'content-range'
+          ? 'Content-Range'
+          : h === 'accept-ranges'
+            ? 'Accept-Ranges'
+            : h === 'content-length'
+              ? 'Content-Length'
+              : 'Cache-Control'
+      ] = v;
   }
   return new Response(upstream.body, { status: upstream.status, headers: respHeaders });
 }

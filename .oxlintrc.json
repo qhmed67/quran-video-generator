@@ -1,0 +1,48 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["eslint", "typescript", "unicorn", "oxc", "react", "import"],
+  "categories": {
+    "correctness": "error",
+    "suspicious": "warn",
+    "perf": "warn"
+  },
+  "env": {
+    "browser": true,
+    "es2022": true
+  },
+  "ignorePatterns": [
+    "dist/**",
+    "node_modules/**",
+    "redesign video creator/**",
+    ".playwright-mcp/**",
+    ".idea/**",
+    "tests/probe-*.mjs",
+    "tests/export-loop-results/**",
+    "tests/golden/baselines/**"
+  ],
+  "rules": {
+    "no-await-in-loop": "off",
+    "unicorn/no-array-sort": "off",
+    "unicorn/consistent-function-scoping": "off",
+    "unicorn/prefer-add-event-listener": "off",
+    "oxc/no-async-endpoint-handlers": "off",
+    "import/no-unassigned-import": "off",
+    "no-misleading-character-class": "warn",
+    "react/set-state-in-effect": "off",
+    "react/refs": "off",
+    "react/no-array-index-key": "warn"
+  },
+  "overrides": [
+    {
+      "files": [
+        "api/**/*.ts",
+        "vite.config.ts",
+        "scripts/**",
+        "tests/**",
+        "**/*.test.ts",
+        "tests/**/*.mjs"
+      ],
+      "env": { "node": true }
+    }
+  ]
+}

@@ -5,8 +5,7 @@ export interface FontSet {
 }
 
 const KFGQPC_FAMILY = "'KFGQPC HAFS Uthmanic Script'";
-const UTHMANI_FONT =
-  `${KFGQPC_FAMILY}, 'Scheherazade New', 'me_quran', 'Noto Naskh Arabic', serif`;
+const UTHMANI_FONT = `${KFGQPC_FAMILY}, 'Scheherazade New', 'me_quran', 'Noto Naskh Arabic', serif`;
 const TRANSLATION_FONT = "system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif";
 
 export async function loadFonts(): Promise<FontSet> {

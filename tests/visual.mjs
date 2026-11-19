@@ -11,7 +11,7 @@ const browser = await chromium.launch(executablePath ? { executablePath } : {});
 const page = await browser.newPage({ viewport: { width: 1500, height: 1000 } });
 page.on('pageerror', (e) => console.error('[pageerror]', e.message));
 await page.goto(url, { waitUntil: 'networkidle' });
-await page.waitForFunction(() => Boolean((window).__visualReady), null, { timeout: 120_000 });
+await page.waitForFunction(() => Boolean(window.__visualReady), null, { timeout: 120_000 });
 
 const canvases = page.locator('#grid canvas');
 const count = await canvases.count();

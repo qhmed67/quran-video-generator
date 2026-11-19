@@ -150,7 +150,9 @@ body {
   background: var(--paper);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  transition: background-color var(--dur-3) var(--ease-out), color var(--dur-3) var(--ease-out);
+  transition:
+    background-color var(--dur-3) var(--ease-out),
+    color var(--dur-3) var(--ease-out);
 }
 
 #root {
@@ -359,8 +361,10 @@ svg {
   font-weight: 600;
   letter-spacing: -0.01em;
   white-space: nowrap;
-  transition: background-color var(--dur-1) var(--ease-out),
-    border-color var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out),
+  transition:
+    background-color var(--dur-1) var(--ease-out),
+    border-color var(--dur-1) var(--ease-out),
+    color var(--dur-1) var(--ease-out),
     transform var(--dur-1) var(--ease-out);
 }
 
@@ -426,8 +430,10 @@ svg {
   border-radius: var(--r-md);
   background: transparent;
   color: var(--ink);
-  transition: background-color var(--dur-1) var(--ease-out),
-    border-color var(--dur-1) var(--ease-out), transform var(--dur-1) var(--ease-out);
+  transition:
+    background-color var(--dur-1) var(--ease-out),
+    border-color var(--dur-1) var(--ease-out),
+    transform var(--dur-1) var(--ease-out);
 }
 
 .icon-btn:hover {
@@ -484,7 +490,8 @@ svg {
   border-radius: var(--r-sm);
   color: var(--ink);
   font-size: var(--text-sm);
-  transition: border-color var(--dur-1) var(--ease-out),
+  transition:
+    border-color var(--dur-1) var(--ease-out),
     box-shadow var(--dur-1) var(--ease-out);
 }
 
@@ -529,8 +536,10 @@ svg {
   pointer-events: none;
   background: currentColor;
   color: var(--muted);
-  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' fill='none' stroke='black' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 4.5 6 7.5 9 4.5'/%3E%3C/svg%3E") center / contain no-repeat;
-  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' fill='none' stroke='black' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 4.5 6 7.5 9 4.5'/%3E%3C/svg%3E") center / contain no-repeat;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' fill='none' stroke='black' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 4.5 6 7.5 9 4.5'/%3E%3C/svg%3E")
+    center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' fill='none' stroke='black' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 4.5 6 7.5 9 4.5'/%3E%3C/svg%3E")
+    center / contain no-repeat;
 }
 
 /* Range */
@@ -618,7 +627,8 @@ svg {
   border: 1px solid var(--rule-strong);
   border-radius: var(--r-pill);
   background: var(--surface-2);
-  transition: background-color var(--dur-2) var(--ease-out),
+  transition:
+    background-color var(--dur-2) var(--ease-out),
     border-color var(--dur-2) var(--ease-out);
 }
 
@@ -690,7 +700,8 @@ svg {
   font-weight: 600;
   letter-spacing: 0;
   white-space: nowrap;
-  transition: background-color var(--dur-1) var(--ease-out),
+  transition:
+    background-color var(--dur-1) var(--ease-out),
     color var(--dur-1) var(--ease-out);
 }
 
@@ -929,7 +940,8 @@ svg {
   height: 34px;
   border-radius: var(--r-sm);
   border: 1px solid var(--rule);
-  transition: box-shadow var(--dur-1) var(--ease-out),
+  transition:
+    box-shadow var(--dur-1) var(--ease-out),
     transform var(--dur-1) var(--ease-out);
 }
 
@@ -938,7 +950,9 @@ svg {
 }
 
 .swatch[aria-pressed='true'] .swatch__chip {
-  box-shadow: 0 0 0 2px var(--paper), 0 0 0 4px var(--accent);
+  box-shadow:
+    0 0 0 2px var(--paper),
+    0 0 0 4px var(--accent);
 }
 
 .swatch__label {
@@ -1502,7 +1516,8 @@ svg {
   color: var(--muted);
   font-size: var(--text-xs);
   font-weight: 600;
-  transition: background-color var(--dur-1) var(--ease-out),
+  transition:
+    background-color var(--dur-1) var(--ease-out),
     color var(--dur-1) var(--ease-out);
 }
 
@@ -1649,7 +1664,12 @@ svg {
   border-radius: var(--r-lg);
   overflow: hidden;
   box-shadow: var(--shadow-2);
-  background: linear-gradient(180deg, var(--frame-top) 0%, var(--frame-mid) 55%, var(--frame-base) 100%);
+  background: linear-gradient(
+    180deg,
+    var(--frame-top) 0%,
+    var(--frame-mid) 55%,
+    var(--frame-base) 100%
+  );
   display: flex;
   flex-direction: column;
   justify-content: space-between;
@@ -1686,7 +1706,9 @@ svg {
   line-height: 1.95;
   text-align: center;
   color: #fdfcf6;
-  text-shadow: 0 1px 2px rgb(0 0 0 / 0.35), 0 0 26px rgb(120 220 170 / 0.16);
+  text-shadow:
+    0 1px 2px rgb(0 0 0 / 0.35),
+    0 0 26px rgb(120 220 170 / 0.16);
 }
 
 .reel__ayah {
@@ -1770,7 +1792,8 @@ svg {
 
 .route {
   height: 100%;
-  transition: opacity var(--dur-3) var(--ease-out),
+  transition:
+    opacity var(--dur-3) var(--ease-out),
     transform var(--dur-3) var(--ease-out);
 }
 
