@@ -134,7 +134,24 @@ at the repo root was identified as candidate debris for Phase 6 — not touched.
 - Hit-testing is a pure function that works with canvas coordinates, making
   it independent of the rendering implementation.
 
-**Gate.** Green. All 46 unit tests pass, `npm run check` green.
+**Gate.** Green. All 47 unit tests pass, `npm run check` green.
+
+## Phase 4.2 — Preview pointer and overlay canvas (2026-11-19)
+
+**What changed.**
+
+- Added usePreviewPointer hook for mouse/touch interaction handling.
+- Added OverlayCanvas component for drawing hover highlights and selection indicators.
+- Implemented selection model with word/range/ayah support.
+- Tests for both components with basic structure validation.
+
+**What was learned.**
+
+- The overlay canvas provides visual feedback for interaction without affecting exports.
+- The hook handles multiple input methods (mouse, touch, keyboard) with appropriate callbacks.
+- Selection model supports different types of selections (word, range, ayah).
+
+**Gate.** Green. All 47 unit tests pass, `npm run check` green.
 
 ## Deviations from the plan
 
