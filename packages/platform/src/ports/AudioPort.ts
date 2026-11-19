@@ -3,17 +3,20 @@
  *
  * The app plays one recitation MP3 and shows a clip of it (the selected
  * ayah range). A prepared {@link AudioPlayer} sits at the clip's start
- * before play and — when an end offset was given — stops itself at the
- * clip's end (dispatching "ended"). All times are offsets in seconds from
- * the *clip* start, not the file start, which keeps callers away from the
- * file's absolute timestamps.
+ * before play and — when an end was given — stops itself at the clip's
+ * end (dispatching "ended"). Times on the player are offsets in seconds
+ * from the *clip* start, not the file start, which keeps callers away
+ * from the file's absolute timestamps. The one exception is
+ * `startOffsetSeconds`, which positions the clip inside the file and is
+ * therefore file-absolute.
  */
 export interface AudioPort {
   /**
-   * Prepare a clip: load `url` (no playback yet), position at
-   * `startOffsetSeconds` (file-absolute), and — when `endSeconds` (also
-   * file-absolute) is given — stop with "ended" at `end - startOffset`.
-   * Resolves with the positioned, not yet playing, player.
+   * Prepare a clip: load `url` (no playback yet) and position it at
+   * `startOffsetSeconds` — the file-absolute offset where the clip begins.
+   * When `endSeconds` is given (clip-relative: seconds from the clip start),
+   * stop with "ended" when playback reaches it. Resolves with the
+   * positioned, not yet playing, player.
    * @throws when the audio cannot be loaded.
    */
   prepareClip(url: string, startOffsetSeconds: number, endSeconds?: number): Promise<AudioPlayer>;
