@@ -1,13 +1,26 @@
 /**
- * Preview pointer hook for interaction (plan phase 4.2).
+ * Preview pointer hook for interaction (plan phase 4.2 / 4.6).
  *
- * Handles mouse/touch interaction for word selection and hover.
+ * Handles mouse/touch interaction for word selection and hover, plus
+ * keyboard navigation (plan section 3.5b): arrow keys move the selection
+ * word by word / ayah by ayah, Enter opens the inspector.
+ *
+ * Key mapping follows RTL reading order — Arabic advances leftward, so
+ * ArrowLeft is "next word" and ArrowRight is "previous word".
+ *
  * Manages hover state and selection model.
  */
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import type { WordRef } from '@qvg/core';
 import type { LayoutIndex } from './layoutIndex';
+import {
+  adjacentAyah,
+  adjacentWord,
+  firstWord,
+  hitTest as hitTestAt,
+  lastWord,
+} from './layoutIndex';
 
 export interface HoverState {
   word: WordRef | null;
@@ -26,13 +39,15 @@ export interface PreviewPointerOptions {
   onHover?: (hover: HoverState) => void;
   onSelect?: (selection: SelectionState) => void;
   onLongPress?: (position: { x: number; y: number }) => void;
+  /** Enter key: open the inspector for the current selection. */
+  onOpenInspector?: () => void;
 }
 
 export function usePreviewPointer(
   canvas: HTMLCanvasElement | null,
   options: PreviewPointerOptions,
 ) {
-  const { layoutIndex, onHover, onSelect, onLongPress } = options;
+  const { layoutIndex, onHover, onSelect, onLongPress, onOpenInspector } = options;
 
   const [hover, setHover] = useState<HoverState>({ word: null, position: null });
   const [selection, setSelection] = useState<SelectionState>({
@@ -59,9 +74,7 @@ export function usePreviewPointer(
       const canvasX = (x - rect.left) * (canvas.width / rect.width);
       const canvasY = (y - rect.top) * (canvas.height / rect.height);
 
-      // Import hitTest function from layoutIndex
-      const { hitTest: hitTestFunction } = require('./layoutIndex');
-      return hitTestFunction(layoutIndex, { x: canvasX, y: canvasY });
+      return hitTestAt(layoutIndex, { x: canvasX, y: canvasY });
     },
     [layoutIndex, canvas],
   );
@@ -153,12 +166,12 @@ export function usePreviewPointer(
           // Double tap detected
           const currentWord = hitTest(point.x, point.y);
           if (currentWord && lastTap) {
-            const lastWord = hitTest(lastTap.x, lastTap.y);
+            const firstTapWord = hitTest(lastTap.x, lastTap.y);
 
-            if (lastWord) {
+            if (firstTapWord) {
               const newSelection: SelectionState = {
                 type: 'range',
-                start: lastWord,
+                start: firstTapWord,
                 end: currentWord,
                 current: currentWord,
               };
@@ -182,9 +195,97 @@ export function usePreviewPointer(
     onHover?.({ word: null, position: null });
   }, [onHover]);
 
+  // Mirror of `selection` for the key handler without re-binding on every change.
+  const selectionRef = useRef<SelectionState>(selection);
+  useEffect(() => {
+    selectionRef.current = selection;
+  }, [selection]);
+
+  // Apply a selection: keep state, ref and callback in sync.
+  const applySelection = useCallback(
+    (next: SelectionState) => {
+      selectionRef.current = next;
+      setSelection(next);
+      onSelect?.(next);
+    },
+    [onSelect],
+  );
+
+  // Keyboard navigation (plan 3.5b): arrows move the selection word by word
+  // / ayah by ayah; Enter opens the inspector. RTL reading order means
+  // ArrowLeft advances ("next") and ArrowRight goes back.
+  const handleKeyDown = useCallback(
+    (e: KeyboardEvent) => {
+      if (!layoutIndex) return;
+      // Leave modifier combinations and native text editing alone.
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      const target = e.target as HTMLElement | null;
+      if (
+        target &&
+        (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)
+      ) {
+        return;
+      }
+
+      const moveWord = (direction: 'next' | 'prev'): boolean => {
+        const current = selectionRef.current.current;
+        const start = current
+          ? adjacentWord(layoutIndex, current, direction)
+          : direction === 'next'
+            ? firstWord(layoutIndex)
+            : lastWord(layoutIndex);
+        if (!start) return false;
+        applySelection({ type: 'word', start, end: start, current: start });
+        return true;
+      };
+
+      const moveAyah = (direction: 'next' | 'prev'): boolean => {
+        const current = selectionRef.current.current;
+        const start = current
+          ? adjacentAyah(layoutIndex, current, direction)
+          : direction === 'next'
+            ? firstWord(layoutIndex)
+            : lastWord(layoutIndex);
+        if (!start) return false;
+        applySelection({ type: 'word', start, end: start, current: start });
+        return true;
+      };
+
+      let handled = false;
+      switch (e.key) {
+        case 'ArrowLeft':
+          handled = moveWord('next');
+          break;
+        case 'ArrowRight':
+          handled = moveWord('prev');
+          break;
+        case 'ArrowDown':
+          handled = moveAyah('next');
+          break;
+        case 'ArrowUp':
+          handled = moveAyah('prev');
+          break;
+        case 'Enter':
+          onOpenInspector?.();
+          handled = true;
+          break;
+        default:
+          return;
+      }
+      if (handled) e.preventDefault();
+    },
+    [layoutIndex, onOpenInspector, applySelection],
+  );
+
   // Setup event listeners
   useEffect(() => {
     if (!canvas) return;
+
+    // Make the canvas focusable so it can receive key events. The canvas is
+    // a plain DOM node owned by the consumer, not React-owned state, so an
+    // effect-time attribute fixup is the correct place for this.
+    // eslint-disable-next-line react/immutability -- DOM node, not React state
+    canvas.tabIndex = 0;
 
     // Mouse events
     canvas.addEventListener('mousemove', handlePointerMove);
@@ -198,6 +299,9 @@ export function usePreviewPointer(
     canvas.addEventListener('touchend', handlePointerUp);
     canvas.addEventListener('touchcancel', handlePointerLeave);
 
+    // Keyboard navigation
+    canvas.addEventListener('keydown', handleKeyDown);
+
     return () => {
       canvas.removeEventListener('mousemove', handlePointerMove);
       canvas.removeEventListener('mousedown', handlePointerDown);
@@ -209,11 +313,20 @@ export function usePreviewPointer(
       canvas.removeEventListener('touchend', handlePointerUp);
       canvas.removeEventListener('touchcancel', handlePointerLeave);
 
+      canvas.removeEventListener('keydown', handleKeyDown);
+
       if (longPressTimeoutRef.current) {
         clearTimeout(longPressTimeoutRef.current);
       }
     };
-  }, [canvas, handlePointerMove, handlePointerDown, handlePointerUp, handlePointerLeave]);
+  }, [
+    canvas,
+    handlePointerMove,
+    handlePointerDown,
+    handlePointerUp,
+    handlePointerLeave,
+    handleKeyDown,
+  ]);
 
   return {
     hover,

@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { createLayoutIndex, hitTest, type LayoutIndex } from './layoutIndex';
+import {
+  adjacentAyah,
+  adjacentWord,
+  createLayoutIndex,
+  firstWord,
+  hitTest,
+  type LayoutIndex,
+} from './layoutIndex';
 import type { FontSet } from '@qvg/core';
 import type { VerseTimelineEntry } from '@qvg/core';
 
@@ -223,5 +230,99 @@ describe('hitTest', () => {
     };
 
     expect(hitTest(layoutIndex, { x: 100, y: 500 })).toBeNull();
+  });
+});
+
+describe('keyboard navigation', () => {
+  // Two ayahs; ayah 1's words are deliberately out of order in the array so
+  // reading order is proven to sort by word index, not array position.
+  const navIndex: LayoutIndex = {
+    width: 1080,
+    height: 1920,
+    bounds: { x: 54, y: 422, width: 972, height: 1075 },
+    verses: [
+      {
+        surah: 1,
+        ayah: 1,
+        words: {
+          surah: 1,
+          ayah: 1,
+          words: [
+            { index: 2, text: 'c', x: 300, y: 500, width: 50, height: 40 },
+            { index: 0, text: 'a', x: 100, y: 500, width: 50, height: 40 },
+            { index: 1, text: 'b', x: 200, y: 500, width: 50, height: 40 },
+          ],
+        },
+      },
+      {
+        surah: 1,
+        ayah: 2,
+        words: {
+          surah: 1,
+          ayah: 2,
+          words: [
+            { index: 0, text: 'd', x: 100, y: 600, width: 50, height: 40 },
+            { index: 1, text: 'e', x: 200, y: 600, width: 50, height: 40 },
+          ],
+        },
+      },
+    ],
+  };
+
+  it('adjacentWord follows reading order (word index ascending)', () => {
+    expect(adjacentWord(navIndex, { surah: 1, ayah: 1, word: 0 }, 'next')).toEqual({
+      surah: 1,
+      ayah: 1,
+      word: 1,
+    });
+    expect(adjacentWord(navIndex, { surah: 1, ayah: 1, word: 2 }, 'next')).toEqual({
+      surah: 1,
+      ayah: 2,
+      word: 0,
+    }); // crosses into ayah 2
+    expect(adjacentWord(navIndex, { surah: 1, ayah: 1, word: 1 }, 'prev')).toEqual({
+      surah: 1,
+      ayah: 1,
+      word: 0,
+    });
+  });
+
+  it('adjacentWord returns null at the ends', () => {
+    expect(adjacentWord(navIndex, { surah: 1, ayah: 1, word: 0 }, 'prev')).toBeNull();
+    expect(adjacentWord(navIndex, { surah: 1, ayah: 2, word: 1 }, 'next')).toBeNull();
+  });
+
+  it('adjacentWord returns null for an unknown current word', () => {
+    expect(adjacentWord(navIndex, { surah: 9, ayah: 99, word: 5 }, 'next')).toBeNull();
+    expect(adjacentWord(navIndex, { surah: 1, ayah: 1, word: 99 }, 'prev')).toBeNull();
+  });
+
+  it('adjacentAyah jumps to the first word of the neighbouring ayah', () => {
+    expect(adjacentAyah(navIndex, { surah: 1, ayah: 1, word: 2 }, 'next')).toEqual({
+      surah: 1,
+      ayah: 2,
+      word: 0,
+    });
+    expect(adjacentAyah(navIndex, { surah: 1, ayah: 2, word: 1 }, 'prev')).toEqual({
+      surah: 1,
+      ayah: 1,
+      word: 0,
+    });
+  });
+
+  it('adjacentAyah returns null at the ends and for unknown ayahs', () => {
+    expect(adjacentAyah(navIndex, { surah: 1, ayah: 1, word: 0 }, 'prev')).toBeNull();
+    expect(adjacentAyah(navIndex, { surah: 1, ayah: 2, word: 0 }, 'next')).toBeNull();
+    expect(adjacentAyah(navIndex, { surah: 2, ayah: 1, word: 0 }, 'next')).toBeNull();
+  });
+
+  it('firstWord returns the first word in reading order, or null', () => {
+    expect(firstWord(navIndex)).toEqual({ surah: 1, ayah: 1, word: 0 });
+    expect(
+      firstWord({
+        ...navIndex,
+        verses: [],
+      }),
+    ).toBeNull();
   });
 });

@@ -180,3 +180,85 @@ export function hitTest(layoutIndex: LayoutIndex, point: { x: number; y: number 
 
   return null;
 }
+
+/**
+ * Flatten the index into reading order: verse order, word index ascending.
+ * Rows are visual lines; the logical reading order is by word index.
+ */
+function flattenReadingOrder(
+  layoutIndex: LayoutIndex,
+): { surah: number; ayah: number; word: number }[] {
+  return layoutIndex.verses.flatMap((verse) =>
+    [...verse.words.words]
+      .sort((a, b) => a.index - b.index)
+      .map((w) => ({ surah: verse.surah, ayah: verse.ayah, word: w.index })),
+  );
+}
+
+function sameWord(a: WordRef, b: WordRef): boolean {
+  return a.surah === b.surah && a.ayah === b.ayah && a.word === b.word;
+}
+
+/**
+ * Keyboard navigation (plan section 3.5b): move the selection word by word.
+ *
+ * 'next' follows reading order (verse order, ascending word index) — for
+ * RTL Arabic the visual direction is leftward, which the key binding in
+ * `usePreviewPointer` maps to ArrowLeft.
+ *
+ * @returns The adjacent word, or null at the ends or when `current` is unknown.
+ */
+export function adjacentWord(
+  layoutIndex: LayoutIndex,
+  current: WordRef,
+  direction: 'next' | 'prev',
+): WordRef | null {
+  const words = flattenReadingOrder(layoutIndex);
+  const at = words.findIndex((w) => sameWord(w, current));
+  if (at === -1) return null;
+
+  const target = direction === 'next' ? at + 1 : at - 1;
+  if (target < 0 || target >= words.length) return null;
+  return words[target];
+}
+
+/**
+ * Keyboard navigation: move the selection to the first word of the previous
+ * or next ayah in the index.
+ *
+ * @returns The target word, or null at the ends or when `current` is unknown.
+ */
+export function adjacentAyah(
+  layoutIndex: LayoutIndex,
+  current: WordRef,
+  direction: 'next' | 'prev',
+): WordRef | null {
+  const verses = layoutIndex.verses;
+  const at = verses.findIndex((v) => v.surah === current.surah && v.ayah === current.ayah);
+  if (at === -1) return null;
+
+  const target = direction === 'next' ? at + 1 : at - 1;
+  if (target < 0 || target >= verses.length) return null;
+
+  const words = [...verses[target].words.words].sort((a, b) => a.index - b.index);
+  if (words.length === 0) return null;
+  return { surah: verses[target].surah, ayah: verses[target].ayah, word: words[0].index };
+}
+
+/**
+ * First word of the whole index — the starting point for keyboard navigation
+ * when nothing is selected yet. Null when the index has no words.
+ */
+export function firstWord(layoutIndex: LayoutIndex): WordRef | null {
+  const words = flattenReadingOrder(layoutIndex);
+  return words.length > 0 ? words[0] : null;
+}
+
+/**
+ * Last word of the whole index — starting point for backward navigation
+ * (ArrowRight / ArrowUp) when nothing is selected yet.
+ */
+export function lastWord(layoutIndex: LayoutIndex): WordRef | null {
+  const words = flattenReadingOrder(layoutIndex);
+  return words.length > 0 ? words[words.length - 1] : null;
+}
