@@ -116,6 +116,26 @@ at the repo root was identified as candidate debris for Phase 6 — not touched.
 
 **Gate.** Green. All 39 unit tests pass, `npm run check` green.
 
+## Phase 4.1 — Layout index and hit-test (2026-11-19)
+
+**What changed.**
+
+- Added layout index and hit-test functionality for word-level interaction.
+- src/render/layoutIndex.ts: WordLayoutIndex and LayoutIndex interfaces,
+  createLayoutIndex function to generate word positions in canvas coordinates,
+  hitTest function to find which word is at a given point.
+- src/render/layoutIndex.test.ts: Comprehensive unit tests covering layout
+  creation, hit-testing with multiple verses, edge cases.
+
+**What was learned.**
+
+- The layout index provides the foundation for interaction features like hover,
+  selection, and word-level styling in Phase 4.
+- Hit-testing is a pure function that works with canvas coordinates, making
+  it independent of the rendering implementation.
+
+**Gate.** Green. All 46 unit tests pass, `npm run check` green.
+
 ## Deviations from the plan
 
 - The plan sketched `StoragePort` over IndexedDB; the shipped web adapter is
