@@ -44,3 +44,11 @@ export type {
   WordStyle,
   WordStyleOverrides,
 } from './style';
+export { DEFAULT_TEXT_STYLE, resolveTextStyle } from './annotation';
+export type {
+  Annotation,
+  AnnotationAnchor,
+  AnnotationPlacement,
+  TextStyle,
+  TextStyleOverrides,
+} from './annotation';
