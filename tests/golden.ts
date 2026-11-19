@@ -13,6 +13,7 @@ import type { FrameRenderOptions } from '../src/render/renderFrame';
 import { buildSampleTimeline } from './sample-timeline';
 import { drawBackground, GRADIENT_PRESETS } from '../src/render/background';
 import type { FontSet } from '../src/render/fonts';
+import type { StyleRule } from '@qvg/core';
 
 const FONT: FontSet = {
   uthmani: "'KFGQPC HAFS Uthmanic Script', 'Noto Naskh Arabic', serif",
@@ -25,12 +26,29 @@ export interface GoldenShot {
   t: number;
   highlight: boolean;
   maxWords?: number;
+  rules?: StyleRule[];
 }
 
 export const GOLDEN_SHOTS: GoldenShot[] = [
   { label: 'mid-word-glow', t: 7.9, highlight: true },
   { label: 'fade-in', t: 7.95, highlight: true },
   { label: 'gap-between-words', t: 8.3, highlight: true },
+  {
+    // Style-rule resolution through the real renderer: the global (green) rule
+    // is overridden by the more specific ayah (red) rule, proving the resolver
+    // precedence reaches the paint path.
+    label: 'word-rule-override',
+    t: 7.9,
+    highlight: true,
+    rules: [
+      { id: 'g-global', target: { kind: 'global' }, props: { color: '#00ff00' } },
+      {
+        id: 'a-ayah-50-2',
+        target: { kind: 'ayah', surah: 50, ayah: 2 },
+        props: { color: '#ff0000' },
+      },
+    ],
+  },
 ];
 
 export const GOLDEN_FRAME_W = 1080;
@@ -65,6 +83,7 @@ async function renderShot(
     textColor: { h: 0, s: 0, l: 100 },
     glowColor: { h: 38, s: 100, l: 70 },
     textOpacity: 1,
+    rules: shot.rules,
     drawBackground: (c) =>
       drawBackground(c, GRADIENT_PRESETS[0], null, GOLDEN_FRAME_W, GOLDEN_FRAME_H),
   };
