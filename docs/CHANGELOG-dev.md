@@ -48,8 +48,32 @@ at the repo root was identified as candidate debris for Phase 6 — not touched.
 
 - App wiring to ports (adapters exist; the app still calls `src/...` modules
   directly for now).
-- Thin `ExportEngine` web adapter over the existing WebCodecs loop — first
-  Phase 3 item.
+
+## Phase 3.2 — Renderer consumes style resolver (2026-11-19)
+
+**What changed.**
+
+- Made `renderFrame` consume `resolveWordStyle` per word: when `opts.rules` is
+  present, `drawUthmaniVerse` branches to a new `paintResolvedVerse` helper,
+  which resolves a `WordStyle` for each laid-out word and paints directly
+  (color, opacity, fontScale, glow, shadow, ayah-number split, ghosting).
+- When `rules` is absent, the renderer keeps the legacy flat-style behavior
+  verbatim (cached glyph tiers, raster compositing), so the app and golden
+  tests are untouched.
+- Added a new golden shot 'word-rule-override' that proves precedence: a
+  global (green) rule is overridden by an ayah (red) rule, demonstrating that
+  the resolver's logic reaches the paint path.
+
+**What was learned.**
+
+- The renderer's tiered raster caching and the direct per-word path are fully
+  decoupled — the legacy path is untouched by the new rules logic.
+- The per-word path must replicate all the legacy ghosting/active-word logic
+  (opacity math, timeline fade, word-highlight glow) to ensure visual parity
+  when no rules are applied.
+
+**Gate.** Green. All 4 golden shots pass (3 legacy unchanged, 1 new rules-based
+  with precedence proven). `npm run check` green.
 
 ## Deviations from the plan
 
