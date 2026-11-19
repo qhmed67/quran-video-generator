@@ -30,3 +30,17 @@ export {
   stripQuranicMarks,
   toArabicIndicDigits,
 } from './text';
+export { DEFAULT_WORD_STYLE, resolveWordStyle, wordKey } from './style';
+export type {
+  AnimationSpec,
+  GlowSpec,
+  HighlightSpec,
+  ShadowSpec,
+  StyleRule,
+  StyleState,
+  StyleTarget,
+  UnderlineSpec,
+  WordRef,
+  WordStyle,
+  WordStyleOverrides,
+} from './style';
