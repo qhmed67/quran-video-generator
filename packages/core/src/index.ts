@@ -54,3 +54,17 @@ export type {
 } from './annotation';
 export { createProject, updateProject, DEFAULT_PROJECT } from './project';
 export type { BackgroundSpec, Project } from './project';
+export {
+  DEFAULT_HISTORY_LIMIT,
+  COALESCE_WINDOW_MS,
+  canRedo,
+  canUndo,
+  commit,
+  createHistory,
+  redo,
+  redoLabel,
+  resetHistory,
+  undo,
+  undoLabel,
+} from './history';
+export type { CommitMeta, History, HistoryEntry } from './history';
