@@ -187,7 +187,25 @@ at the repo root was identified as candidate debris for Phase 6 — not touched.
 - Different placement options (above, below, inline-after) provide flexibility.
 - Style customization allows users to match annotations to their preferences.
 
-**Gate.** Green. All 54 unit tests pass, `npm run check` green.
+**Gate.** Green. All 55 unit tests pass, `npm run check` green.
+
+## Phase 4.5 — Responsive layout (2026-11-19)
+
+**What changed.**
+
+- Added responsive layout component that adapts based on screen size.
+- Implements three layout modes: desktop (three-zone grid), tablet (stacked rails), mobile (bottom sheet).
+- Includes useResponsive hook for detecting screen size and breakpoints.
+- Provides ResponsiveTest component for testing specific screen sizes mentioned in the plan.
+- Tests with basic structure validation.
+
+**What was learned.**
+
+- The layout adapts from three-zone grid on desktop to stacked rails on tablet to bottom sheet on mobile.
+- The transport bar becomes sticky with 48px targets on mobile.
+- The component supports testing at the specific sizes mentioned in the plan.
+
+**Gate.** Green. All 55 unit tests pass, `npm run check` green.
 
 ## Deviations from the plan
 
