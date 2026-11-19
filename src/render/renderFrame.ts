@@ -1,9 +1,16 @@
 import {
   type Canvas2DContext,
   type CanvasLike,
+  type GlowSpec,
+  type ShadowSpec,
+  type StyleRule,
+  type StyleState,
+  type WordRef,
+  type WordStyle,
   countArabicLetters,
   displayWordText,
   isStandaloneToken,
+  resolveWordStyle,
   stripAyahOrnaments,
   stripQuranicMarks,
   type CaptionTimeline,
@@ -59,6 +66,11 @@ export interface FrameRenderOptions {
   glowColor?: HslColor;
   textOpacity?: number;
   drawBackground?: (ctx: Canvas2DContext, tSeconds: number) => void;
+  /**
+   * Style rules for per-word resolution (plan phase 3). When omitted, the
+   * legacy flat style controls (textColor/glowColor/textOpacity/…) are used.
+   */
+  rules?: StyleRule[];
 }
 
 const DEFAULT_TEXT_COLOR: HslColor = { h: 0, s: 0, l: 100 };
@@ -564,6 +576,134 @@ function paintTier(
   return painted;
 }
 
+interface ResolvedWordPaint {
+  fontSize: number;
+  fontFamily: string;
+  color: string;
+  opacity: number;
+  glow: GlowSpec | null;
+  shadow: ShadowSpec | null;
+}
+
+/**
+ * Paints one verse's words straight onto the (already translated + clipped)
+ * context, resolving a style per word through the pure core resolver. Used when
+ * `renderFrame` was given style `rules`; without rules the cached-tier raster
+ * path below owns the painting instead.
+ */
+function paintResolvedVerse(params: {
+  ctx: Canvas2DContext;
+  rows: RowLayout[];
+  blockTopRel: number;
+  fontSize: number;
+  fonts: FontSet;
+  height: number;
+  deviceScale: number;
+  textOpacity: number;
+  opacity: number;
+  rules: StyleRule[];
+  surah: number;
+  ayahNumber: number;
+  ghosting: boolean;
+  highlight: ActiveWordGlow | null;
+  glowColor: HslColor;
+}): void {
+  const {
+    ctx,
+    rows,
+    blockTopRel,
+    fontSize,
+    fonts,
+    height,
+    deviceScale,
+    textOpacity,
+    opacity,
+    rules,
+    surah,
+    ayahNumber,
+    ghosting,
+    highlight,
+    glowColor,
+  } = params;
+  const baseShadowBlur = Math.round(height * 0.008);
+  const maxGlowBlur = Math.round(height * GLOW_BLUR_RATIO);
+  const fallbackGlow =
+    ghosting && highlight
+      ? {
+          color: hslToCSS(glowColor, 0.95),
+          radius: baseShadowBlur + (maxGlowBlur - baseShadowBlur) * highlight.intensity,
+        }
+      : null;
+
+  let lastWordIdx = -1;
+  for (const row of rows) {
+    const last = row.words[row.words.length - 1];
+    if (last) lastWordIdx = last.index;
+  }
+
+  for (const row of rows) {
+    for (const word of row.words) {
+      const isActive = highlight !== null && word.index === highlight.word.index;
+      const state: StyleState = isActive ? 'active' : 'upcoming';
+      const style = resolveWordStyleFor(
+        rules,
+        { surah, ayah: ayahNumber, word: word.index },
+        state,
+      );
+      const alpha = !ghosting
+        ? textOpacity * opacity
+        : isActive
+          ? (highlight?.textOpacity ?? IDLE_OPACITY) * textOpacity * opacity
+          : IDLE_OPACITY * textOpacity * opacity;
+      const wordAlpha = alpha * style.opacity;
+      if (wordAlpha <= 0) continue;
+      ctx.globalAlpha = wordAlpha;
+
+      const isLast = word.index === lastWordIdx;
+      const glow = isActive ? (style.glow ?? fallbackGlow) : style.glow;
+      const paint: ResolvedWordPaint = {
+        fontSize: Math.max(1, Math.round(fontSize * style.fontScale)),
+        fontFamily: fonts.uthmani,
+        color: style.color,
+        opacity: style.opacity,
+        glow,
+        shadow: style.shadow,
+      };
+      ctx.font = `400 ${paint.fontSize}px ${paint.fontFamily}`;
+      ctx.fillStyle = paint.color;
+      ctx.shadowColor = glow ? glow.color : (paint.shadow?.color ?? 'rgba(0, 0, 0, 0.75)');
+      ctx.shadowBlur = (glow ? glow.radius : (paint.shadow?.blur ?? baseShadowBlur)) * deviceScale;
+      ctx.shadowOffsetY = Math.round(height * 0.002) * deviceScale;
+      const wordY = blockTopRel + row.y;
+      if (isLast) {
+        const spaceIdx = word.text.lastIndexOf(' ');
+        if (spaceIdx === -1) {
+          ctx.fillText(word.text, word.x, wordY);
+          continue;
+        }
+        const wordPart = word.text.substring(0, spaceIdx);
+        const numPart = word.text.substring(spaceIdx + 1);
+        ctx.fillText(wordPart, word.x, wordY);
+        const wordWidth = ctx.measureText(wordPart).width;
+        const spaceWidth = ctx.measureText(' ').width;
+        const prevFill = ctx.fillStyle;
+        const prevShadow = ctx.shadowColor;
+        const prevBlur = ctx.shadowBlur;
+        ctx.fillStyle = AYAH_NUM_COLOR;
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.75)';
+        ctx.shadowBlur = baseShadowBlur * deviceScale;
+        ctx.fillText(numPart, word.x - wordWidth - spaceWidth, wordY);
+        ctx.fillStyle = prevFill;
+        ctx.shadowColor = prevShadow;
+        ctx.shadowBlur = prevBlur;
+      } else {
+        ctx.fillText(word.text, word.x, wordY);
+      }
+    }
+  }
+  ctx.globalAlpha = 1;
+}
+
 function drawUthmaniVerse(
   ctx: Canvas2DContext,
   verse: VerseTimelineEntry,
@@ -582,6 +722,15 @@ function drawUthmaniVerse(
     showAyahNumber?: boolean;
     /** Canvas backing pixels per logical frame pixel. */
     deviceScale: number;
+    /**
+     * Style rules (plan phase 3). When present the verse is painted through
+     * per-word resolved styles (`resolveWordStyle`); the flat style fields
+     * above only act as fallbacks for the resolver defaults. When absent the
+     * legacy flat-style raster path is used.
+     */
+    rules?: StyleRule[];
+    /** Surah of the recitating verse; words are addressed as {surah, ayah, word}. */
+    surah: number;
   },
 ): UthmaniBlock {
   const {
@@ -594,8 +743,11 @@ function drawUthmaniVerse(
     textColor,
     glowColor,
     textOpacity,
+    opacity,
     showAyahNumber,
     deviceScale,
+    rules,
+    surah,
   } = opts;
   const boxX = bounds.x;
   const boxY = bounds.y;
@@ -653,6 +805,32 @@ function drawUthmaniVerse(
     rows.length > 0 && rows[rows.length - 1].words.length > 0
       ? rows[rows.length - 1].words[rows[rows.length - 1].words.length - 1].index
       : -1;
+
+  if (rules) {
+    paintResolvedVerse({
+      ctx,
+      rows,
+      blockTopRel,
+      fontSize,
+      fonts,
+      height,
+      deviceScale,
+      textOpacity,
+      opacity,
+      rules,
+      surah,
+      ayahNumber: verse.ayahNumber,
+      ghosting: Boolean(verse.words) && wordHighlightEnabled,
+      highlight,
+      glowColor,
+    });
+    ctx.globalAlpha = 1;
+    ctx.restore();
+    return {
+      top: boxY + blockTopRel,
+      bottom: boxY + blockTopRel + blockHeight,
+    };
+  }
 
   // Shadows are not affected by the canvas transform, so blur radius and
   // offset are expressed in device pixels; that keeps the caption looking the
@@ -960,6 +1138,14 @@ function sliceChunk(
   };
 }
 
+function resolveWordStyleFor(
+  rules: StyleRule[],
+  ref: WordRef,
+  playbackState: StyleState,
+): WordStyle {
+  return resolveWordStyle(rules, ref, playbackState);
+}
+
 export function renderFrame(canvas: CanvasLike, opts: FrameRenderOptions): void {
   const ctx = canvas.getContext('2d');
   if (!ctx) return;
@@ -1042,6 +1228,8 @@ export function renderFrame(canvas: CanvasLike, opts: FrameRenderOptions): void 
       textOpacity,
       showAyahNumber,
       deviceScale,
+      rules: opts.rules,
+      surah: opts.timeline.meta.surah,
     });
   }
   if (captionsOn.translation) {
