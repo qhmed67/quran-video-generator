@@ -169,7 +169,25 @@ at the repo root was identified as candidate debris for Phase 6 — not touched.
 - Adding new properties requires changes in only three places as specified in section 3.5.
 - The inspector shows inheritance info and provides reset functionality for each property.
 
-**Gate.** Green. All 53 unit tests pass, `npm run check` green.
+**Gate.** Green. All 54 unit tests pass, `npm run check` green.
+
+## Phase 4.4 — Annotation editor (2026-11-19)
+
+**What changed.**
+
+- Added annotation editor component for add/edit/delete per ayah or word.
+- Supports word-level and ayah-level annotations with different placement options.
+- Provides style customization for annotation text (font size, color, opacity, alignment).
+- Includes edit and delete functionality for existing annotations.
+- Tests with basic structure validation.
+
+**What was learned.**
+
+- The annotation model separates user-added text from the Qur'anic text.
+- Different placement options (above, below, inline-after) provide flexibility.
+- Style customization allows users to match annotations to their preferences.
+
+**Gate.** Green. All 54 unit tests pass, `npm run check` green.
 
 ## Deviations from the plan
 
