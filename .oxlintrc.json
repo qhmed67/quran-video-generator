@@ -28,6 +28,9 @@
     "oxc/no-async-endpoint-handlers": "off",
     "import/no-unassigned-import": "off",
     "no-misleading-character-class": "warn",
+    // @vitejs/plugin-react uses the automatic JSX runtime: React does not
+    // need to be in scope, so this rule only produces false positives.
+    "react/react-in-jsx-scope": "off",
     "react/set-state-in-effect": "off",
     "react/refs": "off",
     "react/no-array-index-key": "warn",
