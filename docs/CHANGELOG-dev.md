@@ -207,6 +207,29 @@ at the repo root was identified as candidate debris for Phase 6 — not touched.
 
 **Gate.** Green. All 55 unit tests pass, `npm run check` green.
 
+## Gate verification and fixes (2026-11-20)
+
+**What changed.**
+
+- Re-ran the full `npm run check` (typecheck, lint, format:check, test:unit,
+  test:browser, build) end-to-end. Earlier "gate green" claims only covered
+  typecheck + test:unit, so lint and format failures had slipped through.
+- Fixed the inspector reading style values via `prop.displayName` cast to
+  `keyof WordStyle` (`'Color'` vs `'color'`): `PropDescriptor` now carries
+  `key: keyof WordStyle`, populated by the registry, and the Inspector uses it.
+- Fixed two lint errors: `Date.now()` called during render in
+  `AnnotationEditor` (now a ref counter) and a `prefer-as-const` in
+  `project.test.ts`.
+- Applied prettier formatting to render sources so `format:check` passes.
+
+**What was learned.**
+
+- Gate claims must come from a full `npm run check` run, not a subset.
+- A `as keyof T` cast can hide a real key mismatch; the registry descriptor
+  should carry its own key so the type system checks the lookup.
+
+**Gate.** Green (full run). 56 unit tests, browser tests and build all pass.
+
 ## Deviations from the plan
 
 - The plan sketched `StoragePort` over IndexedDB; the shipped web adapter is
