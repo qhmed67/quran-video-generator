@@ -419,6 +419,24 @@ svg {
   padding: 0 var(--s-3);
 }
 
+/* Undo/redo toolbar (phase 4.6): 44px touch targets, 48px under 720px. */
+.undo-redo-bar {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+}
+
+.undo-redo-bar .btn {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+@media (max-width: 719px) {
+  .undo-redo-bar .btn {
+    min-height: 48px;
+  }
+}
+
 .icon-btn {
   display: inline-grid;
   place-items: center;
