@@ -579,8 +579,7 @@ export async function encodeVideoToMp4(opts: EncodeVideoOptions): Promise<Encode
   });
 
   const canvas = new OffscreenCanvas(width, height);
-  const ctx = canvas.getContext('2d') as unknown as CanvasRenderingContext2D;
-  if (!ctx) throw new Error('unable to create 2d context for export');
+  if (!canvas.getContext('2d')) throw new Error('unable to create 2d context for export');
 
   let hasAudio = false;
 
@@ -601,7 +600,7 @@ export async function encodeVideoToMp4(opts: EncodeVideoOptions): Promise<Encode
       }
 
       const tSeconds = i / fps;
-      renderFrame(ctx, { ...opts.render, tSeconds });
+      renderFrame(canvas, { ...opts.render, tSeconds });
 
       const videoFrame = new VideoFrame(canvas, { timestamp: i * frameDurationUs });
       try {

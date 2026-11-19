@@ -68,7 +68,7 @@ async function renderShot(
     drawBackground: (c) =>
       drawBackground(c, GRADIENT_PRESETS[0], null, GOLDEN_FRAME_W, GOLDEN_FRAME_H),
   };
-  renderFrame(ctx, opts);
+  renderFrame(canvas, opts);
   const dataUrl = canvas.toDataURL('image/png');
 
   const result: GoldenResult = {

@@ -1,3 +1,5 @@
+import type { Canvas2DContext } from '@qvg/core';
+
 export interface WordDef {
   index: number;
   text: string;
@@ -39,12 +41,12 @@ export function rowHeightFor(fontSize: number): number {
   return Math.round(fontSize * LINE_HEIGHT_RATIO);
 }
 
-function measureWordWidth(ctx: CanvasRenderingContext2D, text: string, fontSize: number): number {
+function measureWordWidth(ctx: Canvas2DContext, text: string, fontSize: number): number {
   return ctx.measureText(text).width + fontSize * GLYPH_MARGIN_RATIO;
 }
 
 export function layoutRtlRows(opts: {
-  ctx: CanvasRenderingContext2D;
+  ctx: Canvas2DContext;
   words: WordDef[];
   rowWidth: number;
   rowHeight: number;
@@ -137,7 +139,7 @@ export interface TextBlockLayout {
 }
 
 export function layoutTextBlock(opts: {
-  ctx: CanvasRenderingContext2D;
+  ctx: Canvas2DContext;
   words: WordDef[];
   rowWidth: number;
   boxH: number;

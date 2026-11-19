@@ -125,7 +125,7 @@ function timeFrames(
   for (let i = 0; i < frames; i++) {
     const t = mode === 'walk' ? (i / frames) * total : total * 0.42;
     const started = performance.now();
-    renderFrame(ctx, { ...opts, tSeconds: t });
+    renderFrame(canvas, { ...opts, tSeconds: t });
     // Force the queued canvas commands to rasterise so the sample includes
     // real paint work instead of just command recording.
     ctx.getImageData(0, 0, 1, 1);

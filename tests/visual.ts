@@ -78,7 +78,7 @@ function render(shot: Shot, timeline = buildSampleTimeline()): HTMLCanvasElement
     textOpacity: 1,
     drawBackground: (c) => drawBackground(c, GRADIENT_PRESETS[0], null, FRAME_W, FRAME_H),
   };
-  renderFrame(ctx, opts);
+  renderFrame(work, opts);
   if (shot.transform)
     drawTransformOverlay(ctx, bounds, { x: true, y: false }, { width: FRAME_W, height: FRAME_H });
 

@@ -687,7 +687,7 @@ export default function App() {
           const scale = canvas.width / frame.width;
           ctx.save();
           if (tl) {
-            renderFrame(ctx, {
+            renderFrame(canvas, {
               tSeconds: t,
               timeline: tl,
               frameWidth: frame.width,

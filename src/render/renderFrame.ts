@@ -1,4 +1,6 @@
 import {
+  type Canvas2DContext,
+  type CanvasLike,
   countArabicLetters,
   displayWordText,
   isStandaloneToken,
@@ -56,7 +58,7 @@ export interface FrameRenderOptions {
   textColor?: HslColor;
   glowColor?: HslColor;
   textOpacity?: number;
-  drawBackground?: (ctx: CanvasRenderingContext2D, tSeconds: number) => void;
+  drawBackground?: (ctx: Canvas2DContext, tSeconds: number) => void;
 }
 
 const DEFAULT_TEXT_COLOR: HslColor = { h: 0, s: 0, l: 100 };
@@ -82,7 +84,7 @@ export function defaultBounds(width: number, height: number): TextBounds {
 }
 
 export function defaultBackground(
-  ctx: CanvasRenderingContext2D,
+  ctx: Canvas2DContext,
   _tSeconds: number,
   width = ctx.canvas.width,
   height = ctx.canvas.height,
@@ -169,12 +171,7 @@ interface UthmaniBlock {
   bottom: number;
 }
 
-function drawScrim(
-  ctx: CanvasRenderingContext2D,
-  block: UthmaniBlock,
-  boxW: number,
-  boxH: number,
-): void {
+function drawScrim(ctx: Canvas2DContext, block: UthmaniBlock, boxW: number, boxH: number): void {
   const pad = Math.round(boxH * 0.012);
   const x = Math.round(boxW * 0.02) - pad;
   const y = block.top - pad;
@@ -218,7 +215,7 @@ interface UthmaniLayout extends UthmaniTextMeasure {
 
 interface ScratchCanvas {
   canvas: HTMLCanvasElement | OffscreenCanvas;
-  ctx: CanvasRenderingContext2D;
+  ctx: Canvas2DContext;
 }
 
 interface VerseCache {
@@ -263,7 +260,7 @@ function layoutCacheKey(
 }
 
 function buildUthmaniLayout(
-  ctx: CanvasRenderingContext2D,
+  ctx: Canvas2DContext,
   verse: VerseTimelineEntry,
   opts: {
     fonts: FontSet;
@@ -289,7 +286,7 @@ function buildUthmaniLayout(
 }
 
 function computeUthmaniLayout(
-  ctx: CanvasRenderingContext2D,
+  ctx: Canvas2DContext,
   verse: VerseTimelineEntry,
   opts: {
     fonts: FontSet;
@@ -360,7 +357,7 @@ function computeUthmaniLayout(
 }
 
 export function layoutUthmaniText(
-  ctx: CanvasRenderingContext2D,
+  ctx: Canvas2DContext,
   verse: VerseTimelineEntry,
   opts: { fonts: FontSet; boxW: number; boxH: number; align: HorizontalAlign; atMinFont?: boolean },
 ): UthmaniTextMeasure {
@@ -381,13 +378,13 @@ export function layoutUthmaniText(
 function createBufferCanvas(width: number, height: number): ScratchCanvas {
   if (typeof OffscreenCanvas !== 'undefined') {
     const canvas = new OffscreenCanvas(width, height);
-    const ctx = canvas.getContext('2d') as unknown as CanvasRenderingContext2D;
+    const ctx = canvas.getContext('2d') as unknown as Canvas2DContext;
     return { canvas, ctx };
   }
   const canvas = document.createElement('canvas');
   canvas.width = width;
   canvas.height = height;
-  const ctx = canvas.getContext('2d') as CanvasRenderingContext2D;
+  const ctx = canvas.getContext('2d') as Canvas2DContext;
   return { canvas, ctx };
 }
 
@@ -424,7 +421,7 @@ function resetScratchAt(
   deviceScale: number,
   originX: number,
   originY: number,
-): CanvasRenderingContext2D {
+): Canvas2DContext {
   const { ctx } = buffer;
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
@@ -496,7 +493,7 @@ interface WordPaintStyle {
  * `bctx` is already positioned so that `x, y` are the word's own coordinates.
  */
 function paintWord(
-  bctx: CanvasRenderingContext2D,
+  bctx: Canvas2DContext,
   word: { index: number; text: string; x: number; y: number },
   style: WordPaintStyle,
 ): void {
@@ -537,7 +534,7 @@ function findWordLayout(rows: RowLayout[], index: number): WordLayout | null {
 
 /** Paints the words a tier wants: all of them, or only / except one index. */
 function paintTier(
-  bctx: CanvasRenderingContext2D,
+  bctx: Canvas2DContext,
   rows: RowLayout[],
   blockTopRel: number,
   style: WordPaintStyle,
@@ -568,7 +565,7 @@ function paintTier(
 }
 
 function drawUthmaniVerse(
-  ctx: CanvasRenderingContext2D,
+  ctx: Canvas2DContext,
   verse: VerseTimelineEntry,
   opts: {
     t: number;
@@ -794,7 +791,7 @@ function drawUthmaniVerse(
 }
 
 function drawTranslation(
-  ctx: CanvasRenderingContext2D,
+  ctx: Canvas2DContext,
   verse: VerseTimelineEntry,
   opts: {
     fonts: FontSet;
@@ -828,7 +825,7 @@ function drawTranslation(
 }
 
 export function drawTransformOverlay(
-  ctx: CanvasRenderingContext2D,
+  ctx: Canvas2DContext,
   bounds: TextBounds,
   snap: SnapState,
   frame?: { width: number; height: number },
@@ -963,11 +960,13 @@ function sliceChunk(
   };
 }
 
-export function renderFrame(ctx: CanvasRenderingContext2D, opts: FrameRenderOptions): void {
+export function renderFrame(canvas: CanvasLike, opts: FrameRenderOptions): void {
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return;
   const { timeline, tSeconds, captionsOn } = opts;
-  const width = opts.frameWidth ?? ctx.canvas.width;
-  const height = opts.frameHeight ?? ctx.canvas.height;
-  const deviceScale = width > 0 ? ctx.canvas.width / width : 1;
+  const width = opts.frameWidth ?? canvas.width;
+  const height = opts.frameHeight ?? canvas.height;
+  const deviceScale = width > 0 ? canvas.width / width : 1;
   const align = opts.textAlignX ?? 'center';
   const bounds = opts.bounds ?? defaultBounds(width, height);
   const textColor = opts.textColor ?? DEFAULT_TEXT_COLOR;

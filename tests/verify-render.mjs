@@ -42,7 +42,7 @@ const report = await page.evaluate(async () => {
     const w = opts.frameWidth ?? target.width;
     const h = opts.frameHeight ?? target.height;
     const ctx = target.getContext('2d');
-    renderFrame(ctx, {
+    renderFrame(target, {
       captionsOn: { uthmani: true, translation: Boolean(opts.translation) },
       fonts,
       bounds: defaultBounds(w, h),
