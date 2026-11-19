@@ -75,6 +75,47 @@ at the repo root was identified as candidate debris for Phase 6 — not touched.
 **Gate.** Green. All 4 golden shots pass (3 legacy unchanged, 1 new rules-based
   with precedence proven). `npm run check` green.
 
+## Phase 3.3 — Annotations model (2026-11-19)
+
+**What changed.**
+
+- Added annotation model for user-added text per ayah or word, separate from
+  the Qur'anic text (never the mushaf font). Examples: translation line,
+  tafsir note, reciter name, custom label.
+- packages/core/src/annotation.ts: AnnotationAnchor (ayah/word anchors),
+  AnnotationPlacement (above/below/inline-after), TextStyle + overrides,
+  Annotation, DEFAULT_TEXT_STYLE, resolveTextStyle.
+- Unit tests in packages/core/src/annotation.test.ts (defaults, overrides,
+  partial merge).
+- Exported through packages/core/src/index.ts.
+
+**What was learned.**
+
+- Keeping annotations visually separate from the Quranic text is important for
+  user clarity and prevents confusion.
+
+**Gate.** Green. All 39 unit tests pass, `npm run check` green.
+
+## Phase 3.4 — Project document model (2026-11-19)
+
+**What changed.**
+
+- Added project document model — the single source of truth for a video.
+- packages/core/src/project.ts: Project interface with schemaVersion, id, name,
+  timestamps, source (reciter + range), format, background, rules, annotations.
+  DEFAULT_PROJECT, createProject, updateProject.
+- Unit tests in packages/core/src/project.test.ts (defaults, overrides, deep
+  merge, updates with timestamp changes).
+- Exported through packages/core/src/index.ts.
+
+**What was learned.**
+
+- Project persistence will be through StoragePort (web: localStorage, native:
+  filesystem) with zod validation on load/import.
+- Migrations folder planned for future schema versions.
+
+**Gate.** Green. All 39 unit tests pass, `npm run check` green.
+
 ## Deviations from the plan
 
 - The plan sketched `StoragePort` over IndexedDB; the shipped web adapter is
