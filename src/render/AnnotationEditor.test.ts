@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
+import { AnnotationEditor } from './AnnotationEditor';
 
 describe('AnnotationEditor', () => {
-  it('has a test file', () => {
-    expect(true).toBe(true);
+  it('exports a React component', () => {
+    expect(typeof AnnotationEditor).toBe('function');
+    expect(AnnotationEditor.name).toBe('AnnotationEditor');
   });
 });

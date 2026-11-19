@@ -1,23 +1,38 @@
 /**
  * Responsive layout component (plan phase 4.5).
  *
- * Implements responsive layout per DESIGN.md: rails become a bottom sheet under 720px.
+ * Implements responsive layout per DESIGN.md: rails become a bottom sheet
+ * under 720px, stack under the stage under 1120px, three-zone grid above.
  * Test at 360×640, 390×844, 768×1024.
  */
 
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect, type ReactNode } from 'react';
+
+/** Below this width the rails become a bottom sheet (DESIGN.md). */
+export const BREAKPOINT_MOBILE = 720;
+/** Below this width the rails stack under the stage (DESIGN.md). */
+export const BREAKPOINT_TABLET = 1120;
+
+export type LayoutMode = 'mobile' | 'tablet' | 'desktop';
+
+/** Single source of truth for the responsive mode of a viewport width. */
+export function classifyWidth(width: number): LayoutMode {
+  if (width < BREAKPOINT_MOBILE) return 'mobile';
+  if (width < BREAKPOINT_TABLET) return 'tablet';
+  return 'desktop';
+}
 
 interface ResponsiveLayoutProps {
   /** Source rail content */
-  sourceRail: React.ReactNode;
+  sourceRail: ReactNode;
   /** Stage content (main canvas area) */
-  stage: React.ReactNode;
+  stage: ReactNode;
   /** Look rail content */
-  lookRail: React.ReactNode;
+  lookRail: ReactNode;
   /** Transport bar content */
-  transport: React.ReactNode;
+  transport: ReactNode;
   /** Children content */
-  children?: React.ReactNode;
+  children?: ReactNode;
 }
 
 export function ResponsiveLayout({
@@ -27,41 +42,7 @@ export function ResponsiveLayout({
   transport,
   children,
 }: ResponsiveLayoutProps) {
-  const [windowSize, setWindowSize] = useState({
-    width: typeof window !== 'undefined' ? window.innerWidth : 1200,
-    height: typeof window !== 'undefined' ? window.innerHeight : 800,
-  });
-  const [isMobile, setIsMobile] = useState(false);
-  const [isTablet, setIsTablet] = useState(false);
-
-  // Track window size
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-
-    const handleResize = () => {
-      setWindowSize({
-        width: window.innerWidth,
-        height: window.innerHeight,
-      });
-    };
-
-    // Set initial size
-    handleResize();
-
-    // Add event listener
-    window.addEventListener('resize', handleResize);
-
-    // Cleanup
-    return () => {
-      window.removeEventListener('resize', handleResize);
-    };
-  }, []);
-
-  // Update responsive states based on window width
-  useEffect(() => {
-    setIsMobile(windowSize.width < 720);
-    setIsTablet(windowSize.width >= 720 && windowSize.width < 1120);
-  }, [windowSize.width]);
+  const { isMobile, isTablet } = useResponsive();
 
   // Layout classes based on screen size
   const layoutClasses = `responsive-layout ${
@@ -171,12 +152,14 @@ export function useResponsive() {
   }, []);
 
   // Return responsive breakpoints
+  const mode = classifyWidth(windowSize.width);
   return {
     width: windowSize.width,
     height: windowSize.height,
-    isMobile: windowSize.width < 720,
-    isTablet: windowSize.width >= 720 && windowSize.width < 1120,
-    isDesktop: windowSize.width >= 1120,
+    mode,
+    isMobile: mode === 'mobile',
+    isTablet: mode === 'tablet',
+    isDesktop: mode === 'desktop',
     // Specific test sizes mentioned in the plan
     is360x640: windowSize.width === 360 && windowSize.height === 640,
     is390x844: windowSize.width === 390 && windowSize.height === 844,
@@ -186,7 +169,7 @@ export function useResponsive() {
 
 // Component for testing specific screen sizes
 interface ResponsiveTestProps {
-  children: (breakpoint: string) => React.ReactNode;
+  children: (breakpoint: string) => ReactNode;
 }
 
 export function ResponsiveTest({ children }: ResponsiveTestProps) {
