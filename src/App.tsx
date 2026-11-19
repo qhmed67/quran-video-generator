@@ -5,8 +5,12 @@ import { resolveTiming, fetchReciterCatalog } from './data/resolver';
 import { buildTimeline } from './data/timelineBuilder';
 import type { QfChapterReciter } from './data/types';
 import { exportClip } from './export/exporter';
-import { compareToWindow } from '@qvg/core';
-import type { CaptionTimeline, TimingGranularity, VerseTimelineEntry } from './lib/types/timeline';
+import {
+  compareToWindow,
+  type CaptionTimeline,
+  type TimingGranularity,
+  type VerseTimelineEntry,
+} from '@qvg/core';
 import { GRADIENT_PRESETS, drawBackground } from './render/background';
 import type { BgImage, GradientPreset } from './render/background';
 import { loadFonts } from './render/fonts';

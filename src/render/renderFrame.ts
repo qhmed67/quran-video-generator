@@ -1,9 +1,9 @@
-import { compareToWindow } from '@qvg/core';
-import type {
-  CaptionTimeline,
-  VerseTimelineEntry,
-  WordSegmentSeconds,
-} from '../lib/types/timeline';
+import {
+  type CaptionTimeline,
+  type VerseTimelineEntry,
+  type WordSegmentSeconds,
+  compareToWindow,
+} from '@qvg/core';
 import type { FontSet } from './fonts';
 import {
   countArabicLetters,

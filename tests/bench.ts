@@ -13,11 +13,7 @@
 import { renderFrame } from '../src/render/renderFrame';
 import type { FrameRenderOptions } from '../src/render/renderFrame';
 import { drawBackground, GRADIENT_PRESETS } from '../src/render/background';
-import type {
-  CaptionTimeline,
-  VerseTimelineEntry,
-  WordSegmentSeconds,
-} from '../src/lib/types/timeline';
+import type { CaptionTimeline, VerseTimelineEntry, WordSegmentSeconds } from '@qvg/core';
 import type { FontSet } from '../src/render/fonts';
 
 const FONT: FontSet = {

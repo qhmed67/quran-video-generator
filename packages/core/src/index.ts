@@ -14,3 +14,9 @@ export {
   secondsToMs,
   type WindowCompare,
 } from './time';
+export type {
+  CaptionTimeline,
+  TimingGranularity,
+  VerseTimelineEntry,
+  WordSegmentSeconds,
+} from './timeline';

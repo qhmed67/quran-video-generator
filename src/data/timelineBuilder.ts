@@ -1,4 +1,4 @@
-import type { CaptionTimeline, WordSegmentSeconds } from '../lib/types/timeline';
+import type { CaptionTimeline, WordSegmentSeconds } from '@qvg/core';
 import { fetchQfTranslation, fetchQfUthmani } from './sources';
 import type { RawWordSegmentSeconds, TimelineRequest, TimingResolution } from './types';
 import { countArabicLetters, stripAyahOrnaments, stripQuranicMarks } from '../render/layout';

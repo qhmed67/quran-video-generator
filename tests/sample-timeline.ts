@@ -1,9 +1,5 @@
 /** Synthetic timeline shared by the benchmark and the visual check. */
-import type {
-  CaptionTimeline,
-  VerseTimelineEntry,
-  WordSegmentSeconds,
-} from '../src/lib/types/timeline';
+import type { CaptionTimeline, VerseTimelineEntry, WordSegmentSeconds } from '@qvg/core';
 
 const AYAT = [
   'ق ۝١ وَالْقُرْآنِ الْمَجِيدِ ۝٢ بَلْ عَجِبُوا أَن جَاءَهُم مُّنذِرٌ مِّنْهُمْ',
