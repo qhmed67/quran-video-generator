@@ -30,7 +30,17 @@
     "no-misleading-character-class": "warn",
     "react/set-state-in-effect": "off",
     "react/refs": "off",
-    "react/no-array-index-key": "warn"
+    "react/no-array-index-key": "warn",
+    "no-restricted-imports": [
+      "error",
+      {
+        "patterns": [
+          {
+            "regex": "^@qvg/platform"
+          }
+        ]
+      }
+    ]
   },
   "overrides": [
     {
@@ -42,7 +52,74 @@
         "**/*.test.ts",
         "tests/**/*.mjs"
       ],
-      "env": { "node": true }
+      "env": {
+        "node": true
+      }
+    },
+    {
+      "files": ["packages/core/**/*.ts"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "regex": "^@qvg/"
+              }
+            ]
+          }
+        ],
+        "no-restricted-globals": [
+          "error",
+          {
+            "globals": [
+              "window",
+              "document",
+              "fetch",
+              "localStorage",
+              "indexedDB",
+              "navigator",
+              "Audio",
+              "Image"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": [
+        "packages/render/**/*.ts",
+        "src/render/**/*.ts",
+        "packages/data/**/*.ts",
+        "src/data/**/*.ts"
+      ],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "regex": "^@qvg/(data|platform|render|ui)"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["packages/ui/**/*.ts", "src/components/**/*.tsx"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "regex": "^@qvg/platform"
+              }
+            ]
+          }
+        ]
+      }
     }
   ]
 }
