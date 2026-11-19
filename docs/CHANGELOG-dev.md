@@ -230,6 +230,45 @@ at the repo root was identified as candidate debris for Phase 6 — not touched.
 
 **Gate.** Green (full run). 56 unit tests, browser tests and build all pass.
 
+## Phase 4.6 — Undo/redo UI and keyboard navigation (2026-11-20)
+
+**What changed.**
+
+- `packages/core/src/history.ts`: pure snapshot history per plan §3.4 — capped
+  past stack, redo stack cleared on new edits, same-key commits inside a
+  600ms window coalesce into one step (a slider drag undoes once, not forty).
+  15 unit tests cover round-trips, capping and coalescing.
+- Keyboard navigation (plan §3.5b): `adjacentWord`/`adjacentAyah`/`firstWord`/
+  `lastWord` pure functions in `layoutIndex`; arrow keys move the selection
+  (ArrowLeft = next word in RTL reading order, Up/Down = neighbouring ayah),
+  Enter opens the inspector, canvas made focusable.
+- Undo/redo UI: `UndoRedoBar` (design-system buttons, disabled states,
+  shortcut hints, 44px/48px touch targets) and `useUndoShortcuts`
+  (Ctrl/Cmd+Z, Ctrl/Cmd+Shift+Z, Ctrl/Cmd+Y; native undo wins in text fields).
+- Fixed: `usePreviewPointer` reached `hitTest` via CommonJS `require()`,
+  which throws under Vite/ESM in the browser.
+- Fixed: `Inspector.test.tsx`/`OverlayCanvas.test.tsx` never ran — the vitest
+  include pattern only matches `*.test.ts`. Renamed to `.ts` with static
+  imports; test count went from 12 files/56 tests to 16 files/91 tests.
+- Lint: disabled `react/react-in-jsx-scope` (~360 false positives under the
+  automatic JSX runtime); warnings down from 384 to 22, errors to zero.
+- `ResponsiveLayout`: breakpoints extracted to `BREAKPOINT_MOBILE`/
+  `BREAKPOINT_TABLET`/`classifyWidth`, deduplicated through `useResponsive`.
+
+**What was learned.**
+
+- Test include patterns silently drop files: a `.tsx` test under a `*.test.ts`
+  glob is a test that never runs — and `require()` inside it fails under ESM
+  the moment it does.
+
+**Gate.** Green (full `npm run check`). 91 unit tests, browser tests and build
+all pass.
+
+**Still open for the Phase 4 gate.** The plan's Playwright scenario (hover a
+word → export unchanged; tap → change colour → export shows only that word;
+undo restores it) needs the Phase 4 components wired into `App.tsx` — today
+they are standalone and unused by the app shell.
+
 ## Deviations from the plan
 
 - The plan sketched `StoragePort` over IndexedDB; the shipped web adapter is
