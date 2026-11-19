@@ -3,7 +3,7 @@ import { fetchQfUthmani } from './sources';
 import { QF_FIXTURES } from '../../tests/helpers/qf-fixtures';
 import { stubQfFetch, unstubQfFetch } from '../../tests/helpers/qf-fixtures';
 import { reconcileWords } from './timelineBuilder';
-import { countArabicLetters } from '../render/layout';
+import { countArabicLetters } from '@qvg/core';
 
 /**
  * Text integrity guard.

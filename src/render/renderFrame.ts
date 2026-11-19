@@ -1,20 +1,17 @@
 import {
+  countArabicLetters,
+  displayWordText,
+  isStandaloneToken,
+  stripAyahOrnaments,
+  stripQuranicMarks,
   type CaptionTimeline,
   type VerseTimelineEntry,
   type WordSegmentSeconds,
   compareToWindow,
+  toArabicIndicDigits,
 } from '@qvg/core';
 import type { FontSet } from './fonts';
-import {
-  countArabicLetters,
-  displayWordText,
-  isStandaloneToken,
-  layoutTextBlock,
-  rowHeightFor,
-  toArabicIndicDigits,
-  stripAyahOrnaments,
-  stripQuranicMarks,
-} from './layout';
+import { layoutTextBlock, rowHeightFor } from './layout';
 import type { HorizontalAlign, RowLayout, WordDef, WordLayout } from './layout';
 
 export type HighlightMode = 'word' | 'verse';

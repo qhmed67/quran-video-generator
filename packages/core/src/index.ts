@@ -20,3 +20,13 @@ export type {
   VerseTimelineEntry,
   WordSegmentSeconds,
 } from './timeline';
+export {
+  AYAH_END_MARKER,
+  countArabicLetters,
+  displayWordText,
+  isStandaloneToken,
+  ornateAyahMarker,
+  stripAyahOrnaments,
+  stripQuranicMarks,
+  toArabicIndicDigits,
+} from './text';

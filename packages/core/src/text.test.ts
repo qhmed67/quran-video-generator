@@ -8,7 +8,7 @@ import {
   stripAyahOrnaments,
   stripQuranicMarks,
   toArabicIndicDigits,
-} from './layout';
+} from './text';
 
 describe('stripAyahOrnaments', () => {
   it('removes ayah-end markers and full/half alif ornaments', () => {

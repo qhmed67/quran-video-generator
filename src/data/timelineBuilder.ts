@@ -1,7 +1,12 @@
-import type { CaptionTimeline, WordSegmentSeconds } from '@qvg/core';
+import {
+  countArabicLetters,
+  stripAyahOrnaments,
+  stripQuranicMarks,
+  type CaptionTimeline,
+  type WordSegmentSeconds,
+} from '@qvg/core';
 import { fetchQfTranslation, fetchQfUthmani } from './sources';
 import type { RawWordSegmentSeconds, TimelineRequest, TimingResolution } from './types';
-import { countArabicLetters, stripAyahOrnaments, stripQuranicMarks } from '../render/layout';
 
 export interface ValidationIssue {
   verseKey: string;
