@@ -7,3 +7,10 @@
 
 export type { Canvas2DContext, CanvasLike } from './canvas';
 export type { FontSet } from './fonts';
+export {
+  clampSeconds,
+  compareToWindow,
+  msToSeconds,
+  secondsToMs,
+  type WindowCompare,
+} from './time';

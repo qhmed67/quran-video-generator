@@ -1,4 +1,4 @@
-import { msToSeconds } from '../lib/time';
+import { msToSeconds } from '@qvg/core';
 import {
   dedupeWordSegments,
   fetchQfChapterAudio,

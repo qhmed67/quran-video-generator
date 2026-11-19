@@ -1,4 +1,4 @@
-import { compareToWindow } from '../lib/time';
+import { compareToWindow } from '@qvg/core';
 import type {
   CaptionTimeline,
   VerseTimelineEntry,
