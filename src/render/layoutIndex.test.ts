@@ -24,7 +24,11 @@ const mockFonts: FontSet = {
 };
 
 // Mock verse
-const createMockVerse = (surahNumber: number, ayahNumber: number, words: { index: number; text: string }[] = []): VerseTimelineEntry => ({
+const createMockVerse = (
+  surahNumber: number,
+  ayahNumber: number,
+  words: { index: number; text: string }[] = [],
+): VerseTimelineEntry => ({
   verseKey: `${surahNumber}:${ayahNumber}`,
   ayahNumber,
   uthmani: 'بسم الله الرحمن الرحيم',
@@ -59,13 +63,13 @@ describe('createLayoutIndex', () => {
     expect(layoutIndex.surah).toBe(1);
     expect(layoutIndex.ayah).toBe(1);
     expect(layoutIndex.words).toHaveLength(4);
-    
+
     // Check first word
     expect(layoutIndex.words[0].index).toBe(0);
     expect(layoutIndex.words[0].text).toBe('بسم');
     expect(layoutIndex.words[0].x).toBeGreaterThan(bounds.x);
     expect(layoutIndex.words[0].y).toBeGreaterThan(bounds.y);
-    
+
     // Check last word includes ayah number
     expect(layoutIndex.words[3].text).toContain('1'); // Regular 1 for test
   });
@@ -119,9 +123,7 @@ describe('hitTest', () => {
           words: {
             surah: 1,
             ayah: 1,
-            words: [
-              { index: 0, text: 'بسم', x: 100, y: 500, width: 50, height: 40 },
-            ],
+            words: [{ index: 0, text: 'بسم', x: 100, y: 500, width: 50, height: 40 }],
           },
         },
       ],
@@ -178,9 +180,7 @@ describe('hitTest', () => {
           words: {
             surah: 1,
             ayah: 1,
-            words: [
-              { index: 0, text: 'بسم', x: 100, y: 500, width: 50, height: 40 },
-            ],
+            words: [{ index: 0, text: 'بسم', x: 100, y: 500, width: 50, height: 40 }],
           },
         },
         {
@@ -189,9 +189,7 @@ describe('hitTest', () => {
           words: {
             surah: 1,
             ayah: 2,
-            words: [
-              { index: 0, text: 'الحمد', x: 100, y: 600, width: 60, height: 40 },
-            ],
+            words: [{ index: 0, text: 'الحمد', x: 100, y: 600, width: 60, height: 40 }],
           },
         },
       ],

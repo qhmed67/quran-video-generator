@@ -30,10 +30,10 @@ export interface PreviewPointerOptions {
 
 export function usePreviewPointer(
   canvas: HTMLCanvasElement | null,
-  options: PreviewPointerOptions
+  options: PreviewPointerOptions,
 ) {
   const { layoutIndex, onHover, onSelect, onLongPress } = options;
-  
+
   const [hover, setHover] = useState<HoverState>({ word: null, position: null });
   const [selection, setSelection] = useState<SelectionState>({
     type: 'word',
@@ -41,168 +41,180 @@ export function usePreviewPointer(
     end: null,
     current: null,
   });
-  
+
   const isLongPressRef = useRef(false);
   const longPressTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastTapPositionRef = useRef<{ x: number; y: number } | null>(null);
   const lastTapTimeRef = useRef(0);
-  
+
   // Hit-test function using the layout index
-  const hitTest = useCallback((x: number, y: number): WordRef | null => {
-    if (!layoutIndex || !canvas) return null;
-    
-    // Convert client coordinates to canvas coordinates
-    const rect = canvas.getBoundingClientRect();
-    if (!rect) return null;
-    
-    const canvasX = (x - rect.left) * (canvas.width / rect.width);
-    const canvasY = (y - rect.top) * (canvas.height / rect.height);
-    
-    // Import hitTest function from layoutIndex
-    const { hitTest: hitTestFunction } = require('./layoutIndex');
-    return hitTestFunction(layoutIndex, { x: canvasX, y: canvasY });
-  }, [layoutIndex, canvas]);
-  
+  const hitTest = useCallback(
+    (x: number, y: number): WordRef | null => {
+      if (!layoutIndex || !canvas) return null;
+
+      // Convert client coordinates to canvas coordinates
+      const rect = canvas.getBoundingClientRect();
+      if (!rect) return null;
+
+      const canvasX = (x - rect.left) * (canvas.width / rect.width);
+      const canvasY = (y - rect.top) * (canvas.height / rect.height);
+
+      // Import hitTest function from layoutIndex
+      const { hitTest: hitTestFunction } = require('./layoutIndex');
+      return hitTestFunction(layoutIndex, { x: canvasX, y: canvasY });
+    },
+    [layoutIndex, canvas],
+  );
+
   // Handle pointer move (mouse hover)
-  const handlePointerMove = useCallback((e: MouseEvent | TouchEvent) => {
-    if (!canvas) return;
-    
-    const point = getPointerPosition(e, canvas);
-    if (!point) return;
-    
-    const word = hitTest(point.x, point.y);
-    
-    const newHover: HoverState = {
-      word,
-      position: point,
-    };
-    
-    setHover(newHover);
-    onHover?.(newHover);
-  }, [canvas, hitTest, onHover]);
-  
+  const handlePointerMove = useCallback(
+    (e: MouseEvent | TouchEvent) => {
+      if (!canvas) return;
+
+      const point = getPointerPosition(e, canvas);
+      if (!point) return;
+
+      const word = hitTest(point.x, point.y);
+
+      const newHover: HoverState = {
+        word,
+        position: point,
+      };
+
+      setHover(newHover);
+      onHover?.(newHover);
+    },
+    [canvas, hitTest, onHover],
+  );
+
   // Handle pointer down (mouse/touch start)
-  const handlePointerDown = useCallback((e: MouseEvent | TouchEvent) => {
-    if (!canvas) return;
-    
-    const point = getPointerPosition(e, canvas);
-    if (!point) return;
-    
-    const word = hitTest(point.x, point.y);
-    
-    // Handle long press for touch
-    if (isTouchEvent(e)) {
-      isLongPressRef.current = false;
-      
-      // Clear any existing timeout
+  const handlePointerDown = useCallback(
+    (e: MouseEvent | TouchEvent) => {
+      if (!canvas) return;
+
+      const point = getPointerPosition(e, canvas);
+      if (!point) return;
+
+      const word = hitTest(point.x, point.y);
+
+      // Handle long press for touch
+      if (isTouchEvent(e)) {
+        isLongPressRef.current = false;
+
+        // Clear any existing timeout
+        if (longPressTimeoutRef.current) {
+          clearTimeout(longPressTimeoutRef.current);
+        }
+
+        // Set long press timeout (500ms)
+        longPressTimeoutRef.current = setTimeout(() => {
+          isLongPressRef.current = true;
+          onLongPress?.(point);
+        }, 500);
+      }
+
+      // For now, just select on click/tap
+      if (word) {
+        const newSelection: SelectionState = {
+          type: 'word',
+          start: word,
+          end: word,
+          current: word,
+        };
+
+        setSelection(newSelection);
+        onSelect?.(newSelection);
+      }
+    },
+    [canvas, hitTest, onLongPress, onSelect],
+  );
+
+  // Handle pointer up (mouse/touch end)
+  const handlePointerUp = useCallback(
+    (e: MouseEvent | TouchEvent) => {
+      if (!canvas) return;
+
+      const point = getPointerPosition(e, canvas);
+      if (!point) return;
+
+      // Clear long press timeout
       if (longPressTimeoutRef.current) {
         clearTimeout(longPressTimeoutRef.current);
+        longPressTimeoutRef.current = null;
       }
-      
-      // Set long press timeout (500ms)
-      longPressTimeoutRef.current = setTimeout(() => {
-        isLongPressRef.current = true;
-        onLongPress?.(point);
-      }, 500);
-    }
-    
-    // For now, just select on click/tap
-    if (word) {
-      const newSelection: SelectionState = {
-        type: 'word',
-        start: word,
-        end: word,
-        current: word,
-      };
-      
-      setSelection(newSelection);
-      onSelect?.(newSelection);
-    }
-  }, [canvas, hitTest, onLongPress, onSelect]);
-  
-  // Handle pointer up (mouse/touch end)
-  const handlePointerUp = useCallback((e: MouseEvent | TouchEvent) => {
-    if (!canvas) return;
-    
-    const point = getPointerPosition(e, canvas);
-    if (!point) return;
-    
-    // Clear long press timeout
-    if (longPressTimeoutRef.current) {
-      clearTimeout(longPressTimeoutRef.current);
-      longPressTimeoutRef.current = null;
-    }
-    
-    // Handle double tap for range selection
-    if (isTouchEvent(e)) {
-      const now = Date.now();
-      const lastTap = lastTapPositionRef.current;
-      const lastTapTime = lastTapTimeRef.current;
-      
-      if (lastTap && lastTapTime && now - lastTapTime < 300) {
-        // Double tap detected
-        const currentWord = hitTest(point.x, point.y);
-        if (currentWord && lastTap) {
-          const lastWord = hitTest(lastTap.x, lastTap.y);
-          
-          if (lastWord) {
-            const newSelection: SelectionState = {
-              type: 'range',
-              start: lastWord,
-              end: currentWord,
-              current: currentWord,
-            };
-            
-            setSelection(newSelection);
-            onSelect?.(newSelection);
+
+      // Handle double tap for range selection
+      if (isTouchEvent(e)) {
+        const now = Date.now();
+        const lastTap = lastTapPositionRef.current;
+        const lastTapTime = lastTapTimeRef.current;
+
+        if (lastTap && lastTapTime && now - lastTapTime < 300) {
+          // Double tap detected
+          const currentWord = hitTest(point.x, point.y);
+          if (currentWord && lastTap) {
+            const lastWord = hitTest(lastTap.x, lastTap.y);
+
+            if (lastWord) {
+              const newSelection: SelectionState = {
+                type: 'range',
+                start: lastWord,
+                end: currentWord,
+                current: currentWord,
+              };
+
+              setSelection(newSelection);
+              onSelect?.(newSelection);
+            }
           }
         }
+
+        lastTapPositionRef.current = point;
+        lastTapTimeRef.current = now;
       }
-      
-      lastTapPositionRef.current = point;
-      lastTapTimeRef.current = now;
-    }
-  }, [canvas, hitTest, onSelect]);
-  
+    },
+    [canvas, hitTest, onSelect],
+  );
+
   // Handle pointer leave
   const handlePointerLeave = useCallback(() => {
     setHover({ word: null, position: null });
     onHover?.({ word: null, position: null });
   }, [onHover]);
-  
+
   // Setup event listeners
   useEffect(() => {
     if (!canvas) return;
-    
+
     // Mouse events
     canvas.addEventListener('mousemove', handlePointerMove);
     canvas.addEventListener('mousedown', handlePointerDown);
     canvas.addEventListener('mouseup', handlePointerUp);
     canvas.addEventListener('mouseleave', handlePointerLeave);
-    
+
     // Touch events
     canvas.addEventListener('touchmove', handlePointerMove, { passive: false });
     canvas.addEventListener('touchstart', handlePointerDown, { passive: false });
     canvas.addEventListener('touchend', handlePointerUp);
     canvas.addEventListener('touchcancel', handlePointerLeave);
-    
+
     return () => {
       canvas.removeEventListener('mousemove', handlePointerMove);
       canvas.removeEventListener('mousedown', handlePointerDown);
       canvas.removeEventListener('mouseup', handlePointerUp);
       canvas.removeEventListener('mouseleave', handlePointerLeave);
-      
+
       canvas.removeEventListener('touchmove', handlePointerMove);
       canvas.removeEventListener('touchstart', handlePointerDown);
       canvas.removeEventListener('touchend', handlePointerUp);
       canvas.removeEventListener('touchcancel', handlePointerLeave);
-      
+
       if (longPressTimeoutRef.current) {
         clearTimeout(longPressTimeoutRef.current);
       }
     };
   }, [canvas, handlePointerMove, handlePointerDown, handlePointerUp, handlePointerLeave]);
-  
+
   return {
     hover,
     selection,
@@ -224,7 +236,10 @@ export function usePreviewPointer(
 }
 
 // Helper functions
-function getPointerPosition(e: MouseEvent | TouchEvent, _canvas: HTMLCanvasElement): { x: number; y: number } | null {
+function getPointerPosition(
+  e: MouseEvent | TouchEvent,
+  _canvas: HTMLCanvasElement,
+): { x: number; y: number } | null {
   if (e instanceof MouseEvent) {
     return {
       x: e.clientX,
@@ -236,7 +251,7 @@ function getPointerPosition(e: MouseEvent | TouchEvent, _canvas: HTMLCanvasEleme
       y: e.touches[0].clientY,
     };
   }
-  
+
   return null;
 }
 

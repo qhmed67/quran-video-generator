@@ -74,9 +74,7 @@ export function ResponsiveLayout({
   }`;
 
   // Transport classes based on screen size
-  const transportClasses = `transport-bar ${
-    isMobile ? 'mobile-transport' : 'desktop-transport'
-  }`;
+  const transportClasses = `transport-bar ${isMobile ? 'mobile-transport' : 'desktop-transport'}`;
 
   return (
     <div className={layoutClasses}>
@@ -135,16 +133,11 @@ export function ResponsiveLayout({
       </div>
 
       {/* Transport bar - position changes based on screen size */}
-      <div className={transportClasses}>
-        {transport}
-      </div>
+      <div className={transportClasses}>{transport}</div>
 
       {/* Mobile rail toggle button (only visible on mobile) */}
       {isMobile && (
-        <button
-          className="rail-toggle"
-          aria-label="Toggle rails"
-        >
+        <button className="rail-toggle" aria-label="Toggle rails">
           <span className="icon">☰</span>
         </button>
       )}

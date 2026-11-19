@@ -45,7 +45,7 @@ export interface LayoutIndex {
 
 /**
  * Creates a layout index for hit-testing words.
- * 
+ *
  * @param canvas - The canvas to get coordinates from
  * @param verse - The verse to layout
  * @param opts - Layout options
@@ -138,7 +138,7 @@ export function createLayoutIndex(
       y: boxY + row.y,
       width: word.width,
       height: fitted.fontSize,
-    }))
+    })),
   );
 
   return {
@@ -150,14 +150,14 @@ export function createLayoutIndex(
 
 /**
  * Hit-tests a layout index to find the word at a given point.
- * 
+ *
  * @param layoutIndex - The layout index to test
  * @param point - The point to test {x, y}
  * @returns WordRef if a word is hit, null otherwise
  */
 export function hitTest(layoutIndex: LayoutIndex, point: { x: number; y: number }): WordRef | null {
   const { x, y } = point;
-  
+
   // Check if point is within bounds
   const { bounds } = layoutIndex;
   if (x < bounds.x || x > bounds.x + bounds.width || y < bounds.y || y > bounds.y + bounds.height) {
@@ -168,12 +168,7 @@ export function hitTest(layoutIndex: LayoutIndex, point: { x: number; y: number 
   for (const verse of layoutIndex.verses) {
     // Check each word
     for (const word of verse.words.words) {
-      if (
-        x >= word.x &&
-        x <= word.x + word.width &&
-        y >= word.y - word.height &&
-        y <= word.y
-      ) {
+      if (x >= word.x && x <= word.x + word.width && y >= word.y - word.height && y <= word.y) {
         return {
           surah: verse.surah,
           ayah: verse.ayah,
