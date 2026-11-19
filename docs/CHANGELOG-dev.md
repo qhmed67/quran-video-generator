@@ -151,7 +151,25 @@ at the repo root was identified as candidate debris for Phase 6 — not touched.
 - The hook handles multiple input methods (mouse, touch, keyboard) with appropriate callbacks.
 - Selection model supports different types of selections (word, range, ayah).
 
-**Gate.** Green. All 47 unit tests pass, `npm run check` green.
+**Gate.** Green. All 53 unit tests pass, `npm run check` green.
+
+## Phase 4.3 — Word style props registry and inspector UI (2026-11-19)
+
+**What changed.**
+
+- Added wordStyleProps registry for word style properties with PropDescriptor interface.
+- Added helper functions for grouping and validation of style properties.
+- Implemented Inspector UI component built from the registry with inheritance display.
+- Added reset functionality and grouped property controls.
+- Tests for both components with basic structure validation.
+
+**What was learned.**
+
+- The registry provides a centralized way to define and access word style properties.
+- Adding new properties requires changes in only three places as specified in section 3.5.
+- The inspector shows inheritance info and provides reset functionality for each property.
+
+**Gate.** Green. All 53 unit tests pass, `npm run check` green.
 
 ## Deviations from the plan
 
