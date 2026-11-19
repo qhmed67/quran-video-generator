@@ -52,3 +52,5 @@ export type {
   TextStyle,
   TextStyleOverrides,
 } from './annotation';
+export { createProject, updateProject, DEFAULT_PROJECT } from './project';
+export type { BackgroundSpec, Project } from './project';
