@@ -1,7 +1,29 @@
 import { Buffer } from 'node:buffer';
 import { Readable } from 'node:stream';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { defineConfig, loadEnv, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
+
+const here = path.dirname(fileURLToPath(import.meta.url));
+
+/**
+ * Workspace packages are consumed as TypeScript source (no per-package build
+ * step). Keep these in sync with `paths` in tsconfig.json.
+ */
+const packageAliases = [
+  // More specific alias first: rollup treats `@qvg/platform` as a prefix of
+  // `@qvg/platform/web`, so the web entry must match before the base entry.
+  {
+    find: '@qvg/platform/web',
+    replacement: path.resolve(here, 'packages/platform/src/adapters/web/index.ts'),
+  },
+  { find: '@qvg/platform', replacement: path.resolve(here, 'packages/platform/src/index.ts') },
+  { find: '@qvg/core', replacement: path.resolve(here, 'packages/core/src/index.ts') },
+  { find: '@qvg/render', replacement: path.resolve(here, 'packages/render/src/index.ts') },
+  { find: '@qvg/data', replacement: path.resolve(here, 'packages/data/src/index.ts') },
+  { find: '@qvg/ui', replacement: path.resolve(here, 'packages/ui/src/index.ts') },
+];
 
 const ALLOWED_HOSTS = [
   'apis.quran.foundation',
@@ -143,6 +165,9 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
   return {
     plugins: [react(), devProxy(env)],
+    resolve: {
+      alias: packageAliases,
+    },
     server: {
       headers: {
         'Cross-Origin-Opener-Policy': 'same-origin',

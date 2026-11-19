@@ -8,7 +8,12 @@ import { defineConfig } from 'vitest/config';
  */
 export default defineConfig({
   test: {
-    include: ['src/**/*.{test,spec}.ts', 'api/**/*.{test,spec}.ts', 'tests/**/*.{test,spec}.ts'],
+    include: [
+      'src/**/*.{test,spec}.ts',
+      'packages/**/*.{test,spec}.ts',
+      'api/**/*.{test,spec}.ts',
+      'tests/**/*.{test,spec}.ts',
+    ],
     environment: 'node',
     restoreMocks: true,
     // Tests never touch the network: every API payload comes from
