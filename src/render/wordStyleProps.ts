@@ -11,6 +11,8 @@ import type { WordStyle } from '@qvg/core';
 import { DEFAULT_WORD_STYLE } from '@qvg/core';
 
 export interface PropDescriptor {
+  /** The WordStyle key this descriptor controls */
+  key: keyof WordStyle;
   /** Display name for the property */
   displayName: string;
   /** Description of what the property does */
@@ -37,6 +39,7 @@ export interface PropDescriptor {
 
 export const wordStyleProps: Record<keyof WordStyle, PropDescriptor> = {
   color: {
+    key: 'color',
     displayName: 'Color',
     description: 'Text color',
     type: 'color',
@@ -44,6 +47,7 @@ export const wordStyleProps: Record<keyof WordStyle, PropDescriptor> = {
     group: 'text',
   },
   opacity: {
+    key: 'opacity',
     displayName: 'Opacity',
     description: 'Text opacity (0-1)',
     type: 'number',
@@ -54,6 +58,7 @@ export const wordStyleProps: Record<keyof WordStyle, PropDescriptor> = {
     group: 'text',
   },
   fontScale: {
+    key: 'fontScale',
     displayName: 'Font Scale',
     description: 'Font size scaling factor',
     type: 'number',
@@ -64,6 +69,7 @@ export const wordStyleProps: Record<keyof WordStyle, PropDescriptor> = {
     group: 'text',
   },
   glow: {
+    key: 'glow',
     displayName: 'Glow',
     description: 'Text glow effect',
     type: 'object',
@@ -73,6 +79,7 @@ export const wordStyleProps: Record<keyof WordStyle, PropDescriptor> = {
     group: 'effects',
   },
   shadow: {
+    key: 'shadow',
     displayName: 'Shadow',
     description: 'Text shadow effect',
     type: 'object',
@@ -82,6 +89,7 @@ export const wordStyleProps: Record<keyof WordStyle, PropDescriptor> = {
     group: 'effects',
   },
   highlight: {
+    key: 'highlight',
     displayName: 'Highlight',
     description: 'Text background highlight',
     type: 'object',
@@ -91,6 +99,7 @@ export const wordStyleProps: Record<keyof WordStyle, PropDescriptor> = {
     group: 'effects',
   },
   underline: {
+    key: 'underline',
     displayName: 'Underline',
     description: 'Text underline',
     type: 'object',
@@ -100,6 +109,7 @@ export const wordStyleProps: Record<keyof WordStyle, PropDescriptor> = {
     group: 'effects',
   },
   entrance: {
+    key: 'entrance',
     displayName: 'Entrance Animation',
     description: 'Text entrance animation',
     type: 'object',
@@ -153,7 +163,7 @@ export function createDefaultStyle(): WordStyle {
     underline: wordStyleProps.underline.defaultValue,
     entrance: wordStyleProps.entrance.defaultValue,
   };
-  
+
   return style;
 }
 
@@ -170,17 +180,14 @@ export function hasNonDefaultValues(style: WordStyle): boolean {
 /**
  * Get the inheritance path for a style value
  */
-export function getInheritancePath(
-  style: WordStyle,
-  currentLevel: string
-): string[] {
+export function getInheritancePath(style: WordStyle, currentLevel: string): string[] {
   // This would be implemented based on the style resolution logic
   // For now, return a simple path
   const path: string[] = [];
-  
+
   if (hasNonDefaultValues(style)) {
     path.push(currentLevel);
   }
-  
+
   return path;
 }

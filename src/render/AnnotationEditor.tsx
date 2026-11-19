@@ -46,6 +46,8 @@ export function AnnotationEditor({
   const [lang, setLang] = useState<'ar' | 'en' | string>('en');
   const [style, setStyle] = useState<TextStyle>(DEFAULT_TEXT_STYLE);
   const textAreaRef = useRef<HTMLTextAreaElement>(null);
+  // Monotonic id counter — event-handler side effect, not called during render.
+  const idCounter = useRef(0);
 
   // Reset state when selection changes
   useEffect(() => {
@@ -70,12 +72,16 @@ export function AnnotationEditor({
   const handleAdd = () => {
     if (!selection || !text.trim()) return;
 
-    const anchor: AnnotationAnchor = selection.type === 'word'
-      ? { kind: 'word', ref: { surah: selection.surah, ayah: selection.ayah, word: selection.word! } }
-      : { kind: 'ayah', surah: selection.surah, ayah: selection.ayah };
+    const anchor: AnnotationAnchor =
+      selection.type === 'word'
+        ? {
+            kind: 'word',
+            ref: { surah: selection.surah, ayah: selection.ayah, word: selection.word! },
+          }
+        : { kind: 'ayah', surah: selection.surah, ayah: selection.ayah };
 
     const newAnnotation: Annotation = {
-      id: `annotation-${Date.now()}`,
+      id: `annotation-${++idCounter.current}`,
       anchor,
       placement,
       text: text.trim(),
@@ -131,7 +137,7 @@ export function AnnotationEditor({
 
   // Handle style property changes
   const handleStyleChange = (property: keyof TextStyle, value: any) => {
-    setStyle(prev => ({ ...prev, [property]: value }));
+    setStyle((prev) => ({ ...prev, [property]: value }));
   };
 
   // Get selection display text
@@ -143,18 +149,22 @@ export function AnnotationEditor({
   };
 
   // Get existing annotations for the current selection
-  const selectionAnnotations = annotations.filter(ann => {
+  const selectionAnnotations = annotations.filter((ann) => {
     if (!selection) return false;
-    
+
     if (selection.type === 'word') {
-      return ann.anchor.kind === 'word' &&
+      return (
+        ann.anchor.kind === 'word' &&
         ann.anchor.ref.surah === selection.surah &&
         ann.anchor.ref.ayah === selection.ayah &&
-        ann.anchor.ref.word === selection.word;
+        ann.anchor.ref.word === selection.word
+      );
     } else {
-      return ann.anchor.kind === 'ayah' &&
+      return (
+        ann.anchor.kind === 'ayah' &&
         ann.anchor.surah === selection.surah &&
-        ann.anchor.ayah === selection.ayah;
+        ann.anchor.ayah === selection.ayah
+      );
     }
   });
 
@@ -220,7 +230,7 @@ export function AnnotationEditor({
         {/* Add/Edit form */}
         <div className="annotation-form">
           <h4>{isEditing ? 'Edit Annotation' : 'Add New Annotation'}</h4>
-          
+
           <div className="form-group">
             <label>Text</label>
             <textarea
@@ -251,10 +261,7 @@ export function AnnotationEditor({
 
           <div className="form-group">
             <label>Language</label>
-            <select
-              value={lang}
-              onChange={(e) => setLang(e.target.value)}
-            >
+            <select value={lang} onChange={(e) => setLang(e.target.value)}>
               <option value="en">English</option>
               <option value="ar">العربية</option>
               <option value="other">Other</option>
@@ -274,7 +281,7 @@ export function AnnotationEditor({
                   max={32}
                 />
               </div>
-              
+
               <div className="style-control">
                 <label>Color</label>
                 <input
@@ -283,7 +290,7 @@ export function AnnotationEditor({
                   onChange={(e) => handleStyleChange('color', e.target.value)}
                 />
               </div>
-              
+
               <div className="style-control">
                 <label>Opacity</label>
                 <input
@@ -295,7 +302,7 @@ export function AnnotationEditor({
                   step={0.1}
                 />
               </div>
-              
+
               <div className="style-control">
                 <label>Align</label>
                 <select
@@ -313,26 +320,15 @@ export function AnnotationEditor({
           <div className="form-actions">
             {isEditing ? (
               <>
-                <button
-                  className="save-button"
-                  onClick={handleUpdate}
-                  disabled={!text.trim()}
-                >
+                <button className="save-button" onClick={handleUpdate} disabled={!text.trim()}>
                   Save Changes
                 </button>
-                <button
-                  className="cancel-button"
-                  onClick={resetForm}
-                >
+                <button className="cancel-button" onClick={resetForm}>
                   Cancel
                 </button>
               </>
             ) : (
-              <button
-                className="add-button"
-                onClick={handleAdd}
-                disabled={!text.trim()}
-              >
+              <button className="add-button" onClick={handleAdd} disabled={!text.trim()}>
                 Add Annotation
               </button>
             )}

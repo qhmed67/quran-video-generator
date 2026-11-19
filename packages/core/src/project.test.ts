@@ -27,7 +27,7 @@ describe('Project document', () => {
         fromAyah: 5,
         toAyah: 10,
       },
-      format: '1:1' as '1:1',
+      format: '1:1' as const,
       background: {
         preset: 'dusk',
         opacity: 0.8,
