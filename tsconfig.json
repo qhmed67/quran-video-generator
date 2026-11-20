@@ -14,7 +14,15 @@
     "strict": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
-    "noFallthroughCasesInSwitch": true
+    "noFallthroughCasesInSwitch": true,
+    "paths": {
+      "@qvg/core": ["./packages/core/src/index.ts"],
+      "@qvg/platform": ["./packages/platform/src/index.ts"],
+      "@qvg/platform/web": ["./packages/platform/src/adapters/web/index.ts"],
+      "@qvg/render": ["./packages/render/src/index.ts"],
+      "@qvg/data": ["./packages/data/src/index.ts"],
+      "@qvg/ui": ["./packages/ui/src/index.ts"]
+    }
   },
-  "include": ["src", "vite.config.ts"]
+  "include": ["src", "packages", "api", "tests", "vite.config.ts", "vitest.config.ts"]
 }

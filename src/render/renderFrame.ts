@@ -1,16 +1,26 @@
-import { compareToWindow } from '../lib/time';
-import type { CaptionTimeline, VerseTimelineEntry, WordSegmentSeconds } from '../lib/types/timeline';
-import type { FontSet } from './fonts';
 import {
+  type Canvas2DContext,
+  type CanvasLike,
+  type GlowSpec,
+  type ShadowSpec,
+  type StyleRule,
+  type StyleState,
+  type WordRef,
+  type WordStyle,
   countArabicLetters,
   displayWordText,
   isStandaloneToken,
-  layoutTextBlock,
-  rowHeightFor,
-  toArabicIndicDigits,
+  resolveWordStyle,
   stripAyahOrnaments,
   stripQuranicMarks,
-} from './layout';
+  type CaptionTimeline,
+  type VerseTimelineEntry,
+  type WordSegmentSeconds,
+  compareToWindow,
+  toArabicIndicDigits,
+} from '@qvg/core';
+import type { FontSet } from './fonts';
+import { layoutTextBlock, rowHeightFor } from './layout';
 import type { HorizontalAlign, RowLayout, WordDef, WordLayout } from './layout';
 
 export type HighlightMode = 'word' | 'verse';
@@ -55,7 +65,12 @@ export interface FrameRenderOptions {
   textColor?: HslColor;
   glowColor?: HslColor;
   textOpacity?: number;
-  drawBackground?: (ctx: CanvasRenderingContext2D, tSeconds: number) => void;
+  drawBackground?: (ctx: Canvas2DContext, tSeconds: number) => void;
+  /**
+   * Style rules for per-word resolution (plan phase 3). When omitted, the
+   * legacy flat style controls (textColor/glowColor/textOpacity/…) are used.
+   */
+  rules?: StyleRule[];
 }
 
 const DEFAULT_TEXT_COLOR: HslColor = { h: 0, s: 0, l: 100 };
@@ -81,7 +96,7 @@ export function defaultBounds(width: number, height: number): TextBounds {
 }
 
 export function defaultBackground(
-  ctx: CanvasRenderingContext2D,
+  ctx: Canvas2DContext,
   _tSeconds: number,
   width = ctx.canvas.width,
   height = ctx.canvas.height,
@@ -94,7 +109,12 @@ export function defaultBackground(
   ctx.fillRect(0, 0, width, height);
 }
 
-function verseOpacity(verse: VerseTimelineEntry, t: number, fadeIn: number, fadeOut: number): number {
+function verseOpacity(
+  verse: VerseTimelineEntry,
+  t: number,
+  fadeIn: number,
+  fadeOut: number,
+): number {
   if (t < verse.startSeconds || t > verse.endSeconds) return 0;
   const inEnd = verse.startSeconds + fadeIn;
   const outStart = verse.endSeconds - fadeOut;
@@ -163,12 +183,7 @@ interface UthmaniBlock {
   bottom: number;
 }
 
-function drawScrim(
-  ctx: CanvasRenderingContext2D,
-  block: UthmaniBlock,
-  boxW: number,
-  boxH: number,
-): void {
+function drawScrim(ctx: Canvas2DContext, block: UthmaniBlock, boxW: number, boxH: number): void {
   const pad = Math.round(boxH * 0.012);
   const x = Math.round(boxW * 0.02) - pad;
   const y = block.top - pad;
@@ -212,7 +227,7 @@ interface UthmaniLayout extends UthmaniTextMeasure {
 
 interface ScratchCanvas {
   canvas: HTMLCanvasElement | OffscreenCanvas;
-  ctx: CanvasRenderingContext2D;
+  ctx: Canvas2DContext;
 }
 
 interface VerseCache {
@@ -236,7 +251,13 @@ function verseCacheOf(verse: VerseTimelineEntry): VerseCache {
 const MAX_LAYOUTS_PER_VERSE = 12;
 
 function layoutCacheKey(
-  opts: { boxW: number; boxH: number; align: HorizontalAlign; atMinFont?: boolean; showAyahNumber?: boolean },
+  opts: {
+    boxW: number;
+    boxH: number;
+    align: HorizontalAlign;
+    atMinFont?: boolean;
+    showAyahNumber?: boolean;
+  },
   fonts: FontSet,
 ): string {
   return [
@@ -251,9 +272,16 @@ function layoutCacheKey(
 }
 
 function buildUthmaniLayout(
-  ctx: CanvasRenderingContext2D,
+  ctx: Canvas2DContext,
   verse: VerseTimelineEntry,
-  opts: { fonts: FontSet; boxW: number; boxH: number; align: HorizontalAlign; atMinFont?: boolean; showAyahNumber?: boolean },
+  opts: {
+    fonts: FontSet;
+    boxW: number;
+    boxH: number;
+    align: HorizontalAlign;
+    atMinFont?: boolean;
+    showAyahNumber?: boolean;
+  },
 ): UthmaniLayout {
   const cache = verseCacheOf(verse);
   const key = layoutCacheKey(opts, opts.fonts);
@@ -270,9 +298,16 @@ function buildUthmaniLayout(
 }
 
 function computeUthmaniLayout(
-  ctx: CanvasRenderingContext2D,
+  ctx: Canvas2DContext,
   verse: VerseTimelineEntry,
-  opts: { fonts: FontSet; boxW: number; boxH: number; align: HorizontalAlign; atMinFont?: boolean; showAyahNumber?: boolean },
+  opts: {
+    fonts: FontSet;
+    boxW: number;
+    boxH: number;
+    align: HorizontalAlign;
+    atMinFont?: boolean;
+    showAyahNumber?: boolean;
+  },
 ): UthmaniLayout {
   const { fonts, boxW, boxH, align, atMinFont, showAyahNumber } = opts;
   const displayWords: WordDef[] = verse.words
@@ -334,12 +369,17 @@ function computeUthmaniLayout(
 }
 
 export function layoutUthmaniText(
-  ctx: CanvasRenderingContext2D,
+  ctx: Canvas2DContext,
   verse: VerseTimelineEntry,
   opts: { fonts: FontSet; boxW: number; boxH: number; align: HorizontalAlign; atMinFont?: boolean },
 ): UthmaniTextMeasure {
   const layout = buildUthmaniLayout(ctx, verse, opts);
-  return { width: layout.width, height: layout.height, fits: layout.fits, fontSize: layout.fontSize };
+  return {
+    width: layout.width,
+    height: layout.height,
+    fits: layout.fits,
+    fontSize: layout.fontSize,
+  };
 }
 
 /**
@@ -350,13 +390,13 @@ export function layoutUthmaniText(
 function createBufferCanvas(width: number, height: number): ScratchCanvas {
   if (typeof OffscreenCanvas !== 'undefined') {
     const canvas = new OffscreenCanvas(width, height);
-    const ctx = canvas.getContext('2d') as unknown as CanvasRenderingContext2D;
+    const ctx = canvas.getContext('2d') as unknown as Canvas2DContext;
     return { canvas, ctx };
   }
   const canvas = document.createElement('canvas');
   canvas.width = width;
   canvas.height = height;
-  const ctx = canvas.getContext('2d') as CanvasRenderingContext2D;
+  const ctx = canvas.getContext('2d') as Canvas2DContext;
   return { canvas, ctx };
 }
 
@@ -393,7 +433,7 @@ function resetScratchAt(
   deviceScale: number,
   originX: number,
   originY: number,
-): CanvasRenderingContext2D {
+): Canvas2DContext {
   const { ctx } = buffer;
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
@@ -418,13 +458,20 @@ const MAX_TIER_RASTERS = 4;
 
 function tierRaster(key: string, pixelWidth: number, pixelHeight: number): TierCacheEntry {
   const existing = tierRasters.get(key);
-  if (existing && existing.buffer.canvas.width === pixelWidth && existing.buffer.canvas.height === pixelHeight) {
+  if (
+    existing &&
+    existing.buffer.canvas.width === pixelWidth &&
+    existing.buffer.canvas.height === pixelHeight
+  ) {
     // Refresh recency: Map keeps insertion order.
     tierRasters.delete(key);
     tierRasters.set(key, existing);
     return existing;
   }
-  const created: TierCacheEntry = { buffer: createBufferCanvas(pixelWidth, pixelHeight), painted: false };
+  const created: TierCacheEntry = {
+    buffer: createBufferCanvas(pixelWidth, pixelHeight),
+    painted: false,
+  };
   tierRasters.delete(key);
   tierRasters.set(key, created);
   while (tierRasters.size > MAX_TIER_RASTERS) {
@@ -458,7 +505,7 @@ interface WordPaintStyle {
  * `bctx` is already positioned so that `x, y` are the word's own coordinates.
  */
 function paintWord(
-  bctx: CanvasRenderingContext2D,
+  bctx: Canvas2DContext,
   word: { index: number; text: string; x: number; y: number },
   style: WordPaintStyle,
 ): void {
@@ -499,7 +546,7 @@ function findWordLayout(rows: RowLayout[], index: number): WordLayout | null {
 
 /** Paints the words a tier wants: all of them, or only / except one index. */
 function paintTier(
-  bctx: CanvasRenderingContext2D,
+  bctx: Canvas2DContext,
   rows: RowLayout[],
   blockTopRel: number,
   style: WordPaintStyle,
@@ -519,14 +566,146 @@ function paintTier(
       if (filter.only !== undefined && word.index !== filter.only) continue;
       if (word.index === filter.skip) continue;
       painted = true;
-      paintWord(bctx, { index: word.index, text: word.text, x: word.x, y: blockTopRel + row.y }, style);
+      paintWord(
+        bctx,
+        { index: word.index, text: word.text, x: word.x, y: blockTopRel + row.y },
+        style,
+      );
     }
   }
   return painted;
 }
 
+interface ResolvedWordPaint {
+  fontSize: number;
+  fontFamily: string;
+  color: string;
+  opacity: number;
+  glow: GlowSpec | null;
+  shadow: ShadowSpec | null;
+}
+
+/**
+ * Paints one verse's words straight onto the (already translated + clipped)
+ * context, resolving a style per word through the pure core resolver. Used when
+ * `renderFrame` was given style `rules`; without rules the cached-tier raster
+ * path below owns the painting instead.
+ */
+function paintResolvedVerse(params: {
+  ctx: Canvas2DContext;
+  rows: RowLayout[];
+  blockTopRel: number;
+  fontSize: number;
+  fonts: FontSet;
+  height: number;
+  deviceScale: number;
+  textOpacity: number;
+  opacity: number;
+  rules: StyleRule[];
+  surah: number;
+  ayahNumber: number;
+  ghosting: boolean;
+  highlight: ActiveWordGlow | null;
+  glowColor: HslColor;
+}): void {
+  const {
+    ctx,
+    rows,
+    blockTopRel,
+    fontSize,
+    fonts,
+    height,
+    deviceScale,
+    textOpacity,
+    opacity,
+    rules,
+    surah,
+    ayahNumber,
+    ghosting,
+    highlight,
+    glowColor,
+  } = params;
+  const baseShadowBlur = Math.round(height * 0.008);
+  const maxGlowBlur = Math.round(height * GLOW_BLUR_RATIO);
+  const fallbackGlow =
+    ghosting && highlight
+      ? {
+          color: hslToCSS(glowColor, 0.95),
+          radius: baseShadowBlur + (maxGlowBlur - baseShadowBlur) * highlight.intensity,
+        }
+      : null;
+
+  let lastWordIdx = -1;
+  for (const row of rows) {
+    const last = row.words[row.words.length - 1];
+    if (last) lastWordIdx = last.index;
+  }
+
+  for (const row of rows) {
+    for (const word of row.words) {
+      const isActive = highlight !== null && word.index === highlight.word.index;
+      const state: StyleState = isActive ? 'active' : 'upcoming';
+      const style = resolveWordStyleFor(
+        rules,
+        { surah, ayah: ayahNumber, word: word.index },
+        state,
+      );
+      const alpha = !ghosting
+        ? textOpacity * opacity
+        : isActive
+          ? (highlight?.textOpacity ?? IDLE_OPACITY) * textOpacity * opacity
+          : IDLE_OPACITY * textOpacity * opacity;
+      const wordAlpha = alpha * style.opacity;
+      if (wordAlpha <= 0) continue;
+      ctx.globalAlpha = wordAlpha;
+
+      const isLast = word.index === lastWordIdx;
+      const glow = isActive ? (style.glow ?? fallbackGlow) : style.glow;
+      const paint: ResolvedWordPaint = {
+        fontSize: Math.max(1, Math.round(fontSize * style.fontScale)),
+        fontFamily: fonts.uthmani,
+        color: style.color,
+        opacity: style.opacity,
+        glow,
+        shadow: style.shadow,
+      };
+      ctx.font = `400 ${paint.fontSize}px ${paint.fontFamily}`;
+      ctx.fillStyle = paint.color;
+      ctx.shadowColor = glow ? glow.color : (paint.shadow?.color ?? 'rgba(0, 0, 0, 0.75)');
+      ctx.shadowBlur = (glow ? glow.radius : (paint.shadow?.blur ?? baseShadowBlur)) * deviceScale;
+      ctx.shadowOffsetY = Math.round(height * 0.002) * deviceScale;
+      const wordY = blockTopRel + row.y;
+      if (isLast) {
+        const spaceIdx = word.text.lastIndexOf(' ');
+        if (spaceIdx === -1) {
+          ctx.fillText(word.text, word.x, wordY);
+          continue;
+        }
+        const wordPart = word.text.substring(0, spaceIdx);
+        const numPart = word.text.substring(spaceIdx + 1);
+        ctx.fillText(wordPart, word.x, wordY);
+        const wordWidth = ctx.measureText(wordPart).width;
+        const spaceWidth = ctx.measureText(' ').width;
+        const prevFill = ctx.fillStyle;
+        const prevShadow = ctx.shadowColor;
+        const prevBlur = ctx.shadowBlur;
+        ctx.fillStyle = AYAH_NUM_COLOR;
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.75)';
+        ctx.shadowBlur = baseShadowBlur * deviceScale;
+        ctx.fillText(numPart, word.x - wordWidth - spaceWidth, wordY);
+        ctx.fillStyle = prevFill;
+        ctx.shadowColor = prevShadow;
+        ctx.shadowBlur = prevBlur;
+      } else {
+        ctx.fillText(word.text, word.x, wordY);
+      }
+    }
+  }
+  ctx.globalAlpha = 1;
+}
+
 function drawUthmaniVerse(
-  ctx: CanvasRenderingContext2D,
+  ctx: Canvas2DContext,
   verse: VerseTimelineEntry,
   opts: {
     t: number;
@@ -543,9 +722,33 @@ function drawUthmaniVerse(
     showAyahNumber?: boolean;
     /** Canvas backing pixels per logical frame pixel. */
     deviceScale: number;
+    /**
+     * Style rules (plan phase 3). When present the verse is painted through
+     * per-word resolved styles (`resolveWordStyle`); the flat style fields
+     * above only act as fallbacks for the resolver defaults. When absent the
+     * legacy flat-style raster path is used.
+     */
+    rules?: StyleRule[];
+    /** Surah of the recitating verse; words are addressed as {surah, ayah, word}. */
+    surah: number;
   },
 ): UthmaniBlock {
-  const { height, fonts, bounds, align, scrimEnabled, wordHighlightEnabled, textColor, glowColor, textOpacity, showAyahNumber, deviceScale } = opts;
+  const {
+    height,
+    fonts,
+    bounds,
+    align,
+    scrimEnabled,
+    wordHighlightEnabled,
+    textColor,
+    glowColor,
+    textOpacity,
+    opacity,
+    showAyahNumber,
+    deviceScale,
+    rules,
+    surah,
+  } = opts;
   const boxX = bounds.x;
   const boxY = bounds.y;
   const boxW = bounds.width;
@@ -565,7 +768,15 @@ function drawUthmaniVerse(
   ctx.rect(0, -VERTICAL_SAFETY_PAD, boxW, boxH + 2 * VERTICAL_SAFETY_PAD);
   ctx.clip();
   if (scrimEnabled && rowCount > 0) {
-    drawScrim(ctx, { top: blockTopRel - VERTICAL_SAFETY_PAD, bottom: blockTopRel + blockHeight + VERTICAL_SAFETY_PAD }, boxW, boxH);
+    drawScrim(
+      ctx,
+      {
+        top: blockTopRel - VERTICAL_SAFETY_PAD,
+        bottom: blockTopRel + blockHeight + VERTICAL_SAFETY_PAD,
+      },
+      boxW,
+      boxH,
+    );
   }
 
   // --- Glyph pass -----------------------------------------------------
@@ -590,9 +801,36 @@ function drawUthmaniVerse(
   const pixW = Math.max(1, Math.ceil(bufW * deviceScale));
   const pixH = Math.max(1, Math.ceil(bufH * deviceScale));
 
-  const lastWordIdx = rows.length > 0 && rows[rows.length - 1].words.length > 0
-    ? rows[rows.length - 1].words[rows[rows.length - 1].words.length - 1].index
-    : -1;
+  const lastWordIdx =
+    rows.length > 0 && rows[rows.length - 1].words.length > 0
+      ? rows[rows.length - 1].words[rows[rows.length - 1].words.length - 1].index
+      : -1;
+
+  if (rules) {
+    paintResolvedVerse({
+      ctx,
+      rows,
+      blockTopRel,
+      fontSize,
+      fonts,
+      height,
+      deviceScale,
+      textOpacity,
+      opacity,
+      rules,
+      surah,
+      ayahNumber: verse.ayahNumber,
+      ghosting: Boolean(verse.words) && wordHighlightEnabled,
+      highlight,
+      glowColor,
+    });
+    ctx.globalAlpha = 1;
+    ctx.restore();
+    return {
+      top: boxY + blockTopRel,
+      bottom: boxY + blockTopRel + blockHeight,
+    };
+  }
 
   // Shadows are not affected by the canvas transform, so blur radius and
   // offset are expressed in device pixels; that keeps the caption looking the
@@ -731,7 +969,7 @@ function drawUthmaniVerse(
 }
 
 function drawTranslation(
-  ctx: CanvasRenderingContext2D,
+  ctx: Canvas2DContext,
   verse: VerseTimelineEntry,
   opts: {
     fonts: FontSet;
@@ -765,7 +1003,7 @@ function drawTranslation(
 }
 
 export function drawTransformOverlay(
-  ctx: CanvasRenderingContext2D,
+  ctx: Canvas2DContext,
   bounds: TextBounds,
   snap: SnapState,
   frame?: { width: number; height: number },
@@ -857,7 +1095,11 @@ function chunkVerse(verse: VerseTimelineEntry, maxWords: number, tSeconds: numbe
     const chunks: VerseChunk[] = [];
     for (let s = 0; s < totalWords; s += maxWords) {
       const end = Math.min(s + maxWords, totalWords);
-      chunks.push({ verse: sliceChunk(verse, words, { start: s, end }), isLastChunk: end >= totalWords, firstWord: s });
+      chunks.push({
+        verse: sliceChunk(verse, words, { start: s, end }),
+        isLastChunk: end >= totalWords,
+        firstWord: s,
+      });
     }
     cached = { maxWords, chunks };
     verseChunks.set(verse, cached);
@@ -896,11 +1138,21 @@ function sliceChunk(
   };
 }
 
-export function renderFrame(ctx: CanvasRenderingContext2D, opts: FrameRenderOptions): void {
+function resolveWordStyleFor(
+  rules: StyleRule[],
+  ref: WordRef,
+  playbackState: StyleState,
+): WordStyle {
+  return resolveWordStyle(rules, ref, playbackState);
+}
+
+export function renderFrame(canvas: CanvasLike, opts: FrameRenderOptions): void {
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return;
   const { timeline, tSeconds, captionsOn } = opts;
-  const width = opts.frameWidth ?? ctx.canvas.width;
-  const height = opts.frameHeight ?? ctx.canvas.height;
-  const deviceScale = width > 0 ? ctx.canvas.width / width : 1;
+  const width = opts.frameWidth ?? canvas.width;
+  const height = opts.frameHeight ?? canvas.height;
+  const deviceScale = width > 0 ? canvas.width / width : 1;
   const align = opts.textAlignX ?? 'center';
   const bounds = opts.bounds ?? defaultBounds(width, height);
   const textColor = opts.textColor ?? DEFAULT_TEXT_COLOR;
@@ -949,7 +1201,12 @@ export function renderFrame(ctx: CanvasRenderingContext2D, opts: FrameRenderOpti
     showAyahNumber = result.isLastChunk;
   }
 
-  const opacity = verseOpacity(verseWindow, tSeconds, timeline.fade.inSeconds, timeline.fade.outSeconds);
+  const opacity = verseOpacity(
+    verseWindow,
+    tSeconds,
+    timeline.fade.inSeconds,
+    timeline.fade.outSeconds,
+  );
   if (opacity <= 0) {
     ctx.restore();
     return;
@@ -971,6 +1228,8 @@ export function renderFrame(ctx: CanvasRenderingContext2D, opts: FrameRenderOpti
       textOpacity,
       showAyahNumber,
       deviceScale,
+      rules: opts.rules,
+      surah: opts.timeline.meta.surah,
     });
   }
   if (captionsOn.translation) {

@@ -1,0 +1,18 @@
+dist
+node_modules
+public/fonts
+public/ffmpeg
+public/ffmpeg-st
+tests/fixtures
+tests/golden/baselines
+package-lock.json
+*.md
+redesign video creator
+app
+build.gradle.kts
+settings.gradle.kts
+local.properties
+gradle
+*.kt
+*.kts
+*.webp

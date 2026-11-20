@@ -1,4 +1,4 @@
-import type { TimingGranularity } from '../lib/types/timeline';
+import type { TimingGranularity } from '@qvg/core';
 
 export interface RawWordSegmentSeconds {
   index: number;

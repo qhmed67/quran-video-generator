@@ -1,3 +1,5 @@
+import type { Canvas2DContext } from '@qvg/core';
+
 export interface GradientPreset {
   id: string;
   label: string;
@@ -16,7 +18,7 @@ export const GRADIENT_PRESETS: GradientPreset[] = [
  * the caller draws through a scale transform.
  */
 export function drawGradientBackground(
-  ctx: CanvasRenderingContext2D,
+  ctx: Canvas2DContext,
   preset: GradientPreset,
   width = ctx.canvas.width,
   height = ctx.canvas.height,
@@ -32,7 +34,7 @@ export function drawGradientBackground(
 export type BgImage = HTMLImageElement | HTMLCanvasElement | null;
 
 export function drawImageCover(
-  ctx: CanvasRenderingContext2D,
+  ctx: Canvas2DContext,
   img: HTMLImageElement | HTMLCanvasElement,
   width: number,
   height: number,
@@ -54,7 +56,7 @@ export function drawImageCover(
 }
 
 export function drawBackground(
-  ctx: CanvasRenderingContext2D,
+  ctx: Canvas2DContext,
   preset: GradientPreset,
   img: BgImage,
   width = ctx.canvas.width,

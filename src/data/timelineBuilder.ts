@@ -1,7 +1,12 @@
-import type { CaptionTimeline, WordSegmentSeconds } from '../lib/types/timeline';
+import {
+  countArabicLetters,
+  stripAyahOrnaments,
+  stripQuranicMarks,
+  type CaptionTimeline,
+  type WordSegmentSeconds,
+} from '@qvg/core';
 import { fetchQfTranslation, fetchQfUthmani } from './sources';
 import type { RawWordSegmentSeconds, TimelineRequest, TimingResolution } from './types';
-import { countArabicLetters, stripAyahOrnaments, stripQuranicMarks } from '../render/layout';
 
 export interface ValidationIssue {
   verseKey: string;
@@ -56,7 +61,10 @@ export function validateTimeline(t: CaptionTimeline): ValidationIssue[] {
     }
   }
   if (t.meta.granularity === 'word' && wordVerseCount === 0) {
-    issues.push({ verseKey: t.verses[0]?.verseKey ?? '', message: 'word granularity without words' });
+    issues.push({
+      verseKey: t.verses[0]?.verseKey ?? '',
+      message: 'word granularity without words',
+    });
   }
   return issues;
 }

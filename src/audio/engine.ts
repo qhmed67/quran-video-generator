@@ -1,4 +1,4 @@
-import { clampSeconds } from '../lib/time';
+import { clampSeconds } from '@qvg/core';
 
 export interface ClipPlayer {
   element: HTMLAudioElement;

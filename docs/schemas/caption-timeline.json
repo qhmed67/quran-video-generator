@@ -14,7 +14,17 @@
     },
     "meta": {
       "type": "object",
-      "required": ["granularity", "sourceChain", "surah", "versesFrom", "versesTo", "reciterId", "audioUrl", "clipStartOffsetSeconds", "captions"],
+      "required": [
+        "granularity",
+        "sourceChain",
+        "surah",
+        "versesFrom",
+        "versesTo",
+        "reciterId",
+        "audioUrl",
+        "clipStartOffsetSeconds",
+        "captions"
+      ],
       "properties": {
         "granularity": { "enum": ["word", "ayah", "estimated"] },
         "sourceChain": { "type": "array", "items": { "type": "string" } },
@@ -46,13 +56,23 @@
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["verseKey", "ayahNumber", "startSeconds", "endSeconds", "uthmani", "translation"],
+        "required": [
+          "verseKey",
+          "ayahNumber",
+          "startSeconds",
+          "endSeconds",
+          "uthmani",
+          "translation"
+        ],
         "properties": {
           "verseKey": { "type": "string", "pattern": "^\\d+:\\d+$" },
           "ayahNumber": { "type": "integer" },
           "startSeconds": { "type": "number", "minimum": 0 },
           "endSeconds": { "type": "number", "minimum": 0 },
-          "uthmani": { "type": "string", "description": "Raw verse text; renderer appends U+06DD + Arabic-Indic digits; FD3E/FD3F stripped if present" },
+          "uthmani": {
+            "type": "string",
+            "description": "Raw verse text; renderer appends U+06DD + Arabic-Indic digits; FD3E/FD3F stripped if present"
+          },
           "translation": { "type": "string" },
           "words": {
             "type": ["array", "null"],

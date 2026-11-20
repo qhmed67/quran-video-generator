@@ -14,7 +14,7 @@ const browser = await chromium.launch(executablePath ? { executablePath } : {});
 const page = await browser.newPage();
 page.on('pageerror', (e) => console.error('[pageerror]', e.message));
 await page.goto(url, { waitUntil: 'networkidle' });
-await page.waitForFunction(() => Boolean((window).__visualReady), null, { timeout: 120_000 });
+await page.waitForFunction(() => Boolean(window.__visualReady), null, { timeout: 120_000 });
 
 const report = await page.evaluate(async () => {
   const { renderFrame, defaultBounds } = await import('/src/render/renderFrame.ts');
@@ -42,7 +42,7 @@ const report = await page.evaluate(async () => {
     const w = opts.frameWidth ?? target.width;
     const h = opts.frameHeight ?? target.height;
     const ctx = target.getContext('2d');
-    renderFrame(ctx, {
+    renderFrame(target, {
       captionsOn: { uthmani: true, translation: Boolean(opts.translation) },
       fonts,
       bounds: defaultBounds(w, h),
@@ -85,7 +85,9 @@ const report = await page.evaluate(async () => {
   let glowChecked = 0;
 
   for (const tSeconds of times) {
-    const verse = timeline.verses.find((v) => tSeconds >= v.startSeconds && tSeconds < v.endSeconds);
+    const verse = timeline.verses.find(
+      (v) => tSeconds >= v.startSeconds && tSeconds < v.endSeconds,
+    );
     if (!verse) continue;
 
     // Caption text must appear whenever the verse is not in its fade-out tail.
@@ -125,19 +127,30 @@ const report = await page.evaluate(async () => {
   // A word at the middle of its window must be lit by the glow tier. The middle
   // is where `activeWordGlow` holds full intensity and fades are disabled, so
   // this isolates the highlight path from the verse fade in and out.
-  const noFadeTimeline = { ...buildSampleTimeline(), fade: { inSeconds: 0.001, outSeconds: 0.001 } };
+  const noFadeTimeline = {
+    ...buildSampleTimeline(),
+    fade: { inSeconds: 0.001, outSeconds: 0.001 },
+  };
   for (const verse of noFadeTimeline.verses) {
     for (const word of verse.words ?? []) {
       if (countArabicLetters(word.text) < 2 || isStandaloneToken(word.text)) continue;
       const tSeconds = word.startSeconds + (word.endSeconds - word.startSeconds) / 2;
       // Only a verse that owns this instant can light its words; the sample
       // fixture has verses whose windows overlap.
-      const owner = noFadeTimeline.verses.find((v) => tSeconds >= v.startSeconds && tSeconds < v.endSeconds);
+      const owner = noFadeTimeline.verses.find(
+        (v) => tSeconds >= v.startSeconds && tSeconds < v.endSeconds,
+      );
       if (owner !== verse) continue;
-      draw(frame, { tSeconds, wordHighlightEnabled: true, maxWordsPerScreen: 0, timeline: noFadeTimeline });
+      draw(frame, {
+        tSeconds,
+        wordHighlightEnabled: true,
+        maxWordsPerScreen: 0,
+        timeline: noFadeTimeline,
+      });
       const cov = coverage(tSeconds);
       glowChecked++;
-      if (cov.bright === 0) problems.push({ tSeconds, word: word.text, kind: 'active word not lit', cov });
+      if (cov.bright === 0)
+        problems.push({ tSeconds, word: word.text, kind: 'active word not lit', cov });
     }
   }
 
@@ -149,7 +162,13 @@ const report = await page.evaluate(async () => {
   for (const tSeconds of [3.5, 7.9, 12.3, 18.6, 24.1]) {
     for (const wordHighlightEnabled of [false, true]) {
       draw(frame, { tSeconds, wordHighlightEnabled, maxWordsPerScreen: 0 });
-      draw(half, { tSeconds, wordHighlightEnabled, maxWordsPerScreen: 0, frameWidth: W, frameHeight: H });
+      draw(half, {
+        tSeconds,
+        wordHighlightEnabled,
+        maxWordsPerScreen: 0,
+        frameWidth: W,
+        frameHeight: H,
+      });
       const ref = document.createElement('canvas');
       ref.width = W / 2;
       ref.height = H / 2;
@@ -160,7 +179,8 @@ const report = await page.evaluate(async () => {
       const b = half.getContext('2d').getImageData(0, 0, half.width, half.height).data;
       let sum = 0;
       for (let i = 0; i < a.length; i += 4) {
-        sum += Math.abs(a[i] - b[i]) + Math.abs(a[i + 1] - b[i + 1]) + Math.abs(a[i + 2] - b[i + 2]);
+        sum +=
+          Math.abs(a[i] - b[i]) + Math.abs(a[i + 1] - b[i + 1]) + Math.abs(a[i + 2] - b[i + 2]);
       }
       const meanAbsDiff = +(sum / (a.length / 4) / 3).toFixed(2);
       diffs.push({ tSeconds, wordHighlightEnabled, meanAbsDiff });

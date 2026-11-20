@@ -14,7 +14,7 @@ import { buildSampleTimeline } from './sample-timeline';
 
 const FONT: FontSet = {
   uthmani: "'KFGQPC HAFS Uthmanic Script', 'Noto Naskh Arabic', serif",
-  translation: "system-ui, -apple-system, sans-serif",
+  translation: 'system-ui, -apple-system, sans-serif',
   uthmaniLoaded: true,
 };
 
@@ -78,8 +78,9 @@ function render(shot: Shot, timeline = buildSampleTimeline()): HTMLCanvasElement
     textOpacity: 1,
     drawBackground: (c) => drawBackground(c, GRADIENT_PRESETS[0], null, FRAME_W, FRAME_H),
   };
-  renderFrame(ctx, opts);
-  if (shot.transform) drawTransformOverlay(ctx, bounds, { x: true, y: false }, { width: FRAME_W, height: FRAME_H });
+  renderFrame(work, opts);
+  if (shot.transform)
+    drawTransformOverlay(ctx, bounds, { x: true, y: false }, { width: FRAME_W, height: FRAME_H });
 
   const out = document.createElement('canvas');
   if (shot.crop) {
