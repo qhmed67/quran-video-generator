@@ -8,9 +8,9 @@
 
 import type { CanvasLike, WordRef } from '@qvg/core';
 import type { FontSet } from '@qvg/core';
-import type { HorizontalAlign, WordLayout } from './layout';
+import type { HorizontalAlign } from './layout';
 import type { VerseTimelineEntry } from '@qvg/core';
-import { layoutTextBlock } from './layout';
+import { layoutVerseWordBoxes } from './renderFrame';
 
 /** Word layout with canvas coordinates for hit-testing. */
 export interface WordLayoutIndex {
@@ -46,10 +46,14 @@ export interface LayoutIndex {
 /**
  * Creates a layout index for hit-testing words.
  *
- * @param canvas - The canvas to get coordinates from
- * @param verse - The verse to layout
+ * Uses the renderer's own layout so the boxes land exactly on the painted
+ * glyphs; re-deriving fonts and vertical centring here made every hit offset
+ * by the block's top padding.
+ *
+ * @param canvas - The canvas to measure text with
+ * @param verse - The verse to lay out
  * @param opts - Layout options
- * @returns Layout index with word positions in canvas coordinates
+ * @returns Word positions in frame coordinates, `y` being the text baseline
  */
 export function createLayoutIndex(
   canvas: CanvasLike,
@@ -64,87 +68,28 @@ export function createLayoutIndex(
     };
     align: HorizontalAlign;
     deviceScale: number;
+    /** Whether the painted verse carries its ayah number (see renderFrame). */
+    showAyahNumber?: boolean;
   },
 ): WordLayoutIndex {
-  const { fonts, bounds, align } = opts;
-  const boxX = bounds.x;
-  const boxY = bounds.y;
-  const boxW = bounds.width;
-  const boxH = bounds.height;
+  const { fonts, bounds, align, showAyahNumber } = opts;
 
-  // Create a temporary context for layout
   const ctx = canvas.getContext('2d');
   if (!ctx) {
     throw new Error('Failed to get 2D context from canvas');
   }
 
-  // Prepare display words
-  const displayWords: WordLayout[] = verse.words
-    ? verse.words
-        .map((w) => ({ index: w.index, text: w.text, x: 0, y: 0, width: 0 }))
-        .filter((w) => w.text.length > 0)
-    : (() => {
-        const raw = verse.uthmani.trim();
-        const parts = raw.length ? raw.split(/\s+/) : [];
-        const kept: WordLayout[] = [];
-        for (const part of parts) {
-          const text = part.trim();
-          if (text.length > 0) {
-            kept.push({ index: kept.length, text, x: 0, y: 0, width: 0 });
-          }
-        }
-        return kept;
-      })();
-
-  if (displayWords.length === 0) {
-    return {
-      surah: parseInt(verse.verseKey.split(':')[0]),
-      ayah: verse.ayahNumber,
-      words: [],
-    };
-  }
-
-  // Add ayah number to the last word
-  const last = displayWords[displayWords.length - 1];
-  last.text = last.text + ' ' + verse.ayahNumber;
-
-  // Layout the text
-  const rowGap = Math.round(boxH * 0.02);
-  const marginX = Math.round(boxW * 0.04);
-  const initialFont = Math.round(boxH * 0.17);
-  const minFont = Math.max(8, Math.round(boxH * 0.05));
-
-  const fitted = layoutTextBlock({
-    ctx,
-    words: displayWords,
-    rowWidth: boxW,
-    boxH,
-    marginX,
-    startY: 0,
-    rowGap,
-    initialFontSize: initialFont,
-    minFontSize: minFont,
-    fixedFont: false,
+  const { boxes } = layoutVerseWordBoxes(ctx, verse, {
+    fonts,
+    bounds,
     align,
-    fontFamily: fonts.uthmani,
+    showAyahNumber,
   });
 
-  // Convert to canvas coordinates
-  const words = fitted.rows.flatMap((row: any) =>
-    row.words.map((word: any) => ({
-      index: word.index,
-      text: word.text,
-      x: boxX + word.x,
-      y: boxY + row.y,
-      width: word.width,
-      height: fitted.fontSize,
-    })),
-  );
-
   return {
-    surah: parseInt(verse.verseKey.split(':')[0]),
+    surah: parseInt(verse.verseKey.split(':')[0], 10),
     ayah: verse.ayahNumber,
-    words,
+    words: boxes,
   };
 }
 

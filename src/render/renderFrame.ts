@@ -383,6 +383,51 @@ export function layoutUthmaniText(
 }
 
 /**
+ * Word boxes in the same coordinates the renderer paints with.
+ *
+ * The hit-test index must agree with the frame pixel for pixel, so it reuses
+ * this layout instead of re-deriving fonts, gaps and vertical centring. The
+ * returned coordinates are relative to the frame (not to the text box): the
+ * caller only adds nothing, because the renderer translates by the same
+ * `bounds` origin before painting.
+ */
+export function layoutVerseWordBoxes(
+  ctx: Canvas2DContext,
+  verse: VerseTimelineEntry,
+  opts: { fonts: FontSet; bounds: TextBounds; align: HorizontalAlign; showAyahNumber?: boolean },
+): {
+  height: number;
+  boxes: { index: number; text: string; x: number; y: number; width: number; height: number }[];
+} {
+  const { fonts, bounds, align, showAyahNumber } = opts;
+  const layout = buildUthmaniLayout(ctx, verse, {
+    fonts,
+    boxW: bounds.width,
+    boxH: bounds.height,
+    align,
+    showAyahNumber,
+  });
+  const boxes = layout.rows.flatMap((row) =>
+    row.words.map((word) => ({
+      index: word.index,
+      text: word.text,
+      // `word.x` is the pen position, which for RTL is the word's RIGHT edge:
+      // Arabic glyphs extend leftward from it. The box therefore starts one
+      // width earlier.
+      x: bounds.x + word.x - word.width,
+      // `row.y` is the baseline inside the block, `blockTopRel` centres the
+      // block in the box, and `bounds.y` is the box origin in the frame.
+      y: bounds.y + layout.blockTopRel + row.y,
+      width: word.width,
+      // Glyph height, not the row pitch: the row includes the line gap, which
+      // would make a hit area taller than the words a reader can see.
+      height: layout.fontSize,
+    })),
+  );
+  return { height: layout.height, boxes };
+}
+
+/**
  * Creates a scratch canvas we can render fully-opaque glyphs onto before
  * compositing the flattened result with the fade opacity. Works both on the
  * main thread (HTMLCanvasElement) and on an OffscreenCanvas in a worker.
