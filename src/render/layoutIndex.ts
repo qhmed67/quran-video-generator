@@ -195,6 +195,11 @@ function flattenReadingOrder(
   );
 }
 
+/** Whether two word references point at the same word. */
+export function sameWordRef(a: WordRef, b: WordRef): boolean {
+  return sameWord(a, b);
+}
+
 function sameWord(a: WordRef, b: WordRef): boolean {
   return a.surah === b.surah && a.ayah === b.ayah && a.word === b.word;
 }
