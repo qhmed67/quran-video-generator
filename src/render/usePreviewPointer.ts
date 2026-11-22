@@ -49,6 +49,17 @@ export function usePreviewPointer(
 ) {
   const { layoutIndex, onHover, onSelect, onLongPress, onOpenInspector } = options;
 
+  // The layout index is rebuilt whenever the visible verse or the frame size
+  // changes, and the callbacks are usually fresh closures each render. Binding
+  // the DOM listeners to those would either re-subscribe on every rebuild (and
+  // drop the hover under the pointer) or leave a stale handler attached that
+  // hit-tests against a null index. Refs keep one subscription for the life of
+  // the canvas while every handler still reads the current values.
+  const layoutIndexRef = useRef<LayoutIndex | null>(layoutIndex);
+  layoutIndexRef.current = layoutIndex;
+  const callbacksRef = useRef({ onHover, onSelect, onLongPress, onOpenInspector });
+  callbacksRef.current = { onHover, onSelect, onLongPress, onOpenInspector };
+
   const [hover, setHover] = useState<HoverState>({ word: null, position: null });
   const [selection, setSelection] = useState<SelectionState>({
     type: 'word',
@@ -65,18 +76,22 @@ export function usePreviewPointer(
   // Hit-test function using the layout index
   const hitTest = useCallback(
     (x: number, y: number): WordRef | null => {
-      if (!layoutIndex || !canvas) return null;
+      const index = layoutIndexRef.current;
+      if (!index || !canvas) return null;
 
-      // Convert client coordinates to canvas coordinates
+      // Convert client coordinates to *logical frame* coordinates. The layout
+      // index is built in frame space (1080x1920), not in the preview's backing
+      // store, so using the canvas pixel size here would offset every hit by
+      // the preview scale.
       const rect = canvas.getBoundingClientRect();
-      if (!rect) return null;
+      if (!rect || rect.width === 0 || rect.height === 0) return null;
 
-      const canvasX = (x - rect.left) * (canvas.width / rect.width);
-      const canvasY = (y - rect.top) * (canvas.height / rect.height);
+      const frameX = (x - rect.left) * (index.width / rect.width);
+      const frameY = (y - rect.top) * (index.height / rect.height);
 
-      return hitTestAt(layoutIndex, { x: canvasX, y: canvasY });
+      return hitTestAt(index, { x: frameX, y: frameY });
     },
-    [layoutIndex, canvas],
+    [canvas],
   );
 
   // Handle pointer move (mouse hover)
@@ -95,9 +110,9 @@ export function usePreviewPointer(
       };
 
       setHover(newHover);
-      onHover?.(newHover);
+      callbacksRef.current.onHover?.(newHover);
     },
-    [canvas, hitTest, onHover],
+    [canvas, hitTest],
   );
 
   // Handle pointer down (mouse/touch start)
@@ -122,7 +137,7 @@ export function usePreviewPointer(
         // Set long press timeout (500ms)
         longPressTimeoutRef.current = setTimeout(() => {
           isLongPressRef.current = true;
-          onLongPress?.(point);
+          callbacksRef.current.onLongPress?.(point);
         }, 500);
       }
 
@@ -136,10 +151,10 @@ export function usePreviewPointer(
         };
 
         setSelection(newSelection);
-        onSelect?.(newSelection);
+        callbacksRef.current.onSelect?.(newSelection);
       }
     },
-    [canvas, hitTest, onLongPress, onSelect],
+    [canvas, hitTest],
   );
 
   // Handle pointer up (mouse/touch end)
@@ -177,7 +192,7 @@ export function usePreviewPointer(
               };
 
               setSelection(newSelection);
-              onSelect?.(newSelection);
+              callbacksRef.current.onSelect?.(newSelection);
             }
           }
         }
@@ -186,14 +201,14 @@ export function usePreviewPointer(
         lastTapTimeRef.current = now;
       }
     },
-    [canvas, hitTest, onSelect],
+    [canvas, hitTest],
   );
 
   // Handle pointer leave
   const handlePointerLeave = useCallback(() => {
     setHover({ word: null, position: null });
-    onHover?.({ word: null, position: null });
-  }, [onHover]);
+    callbacksRef.current.onHover?.({ word: null, position: null });
+  }, []);
 
   // Mirror of `selection` for the key handler without re-binding on every change.
   const selectionRef = useRef<SelectionState>(selection);
@@ -202,21 +217,18 @@ export function usePreviewPointer(
   }, [selection]);
 
   // Apply a selection: keep state, ref and callback in sync.
-  const applySelection = useCallback(
-    (next: SelectionState) => {
-      selectionRef.current = next;
-      setSelection(next);
-      onSelect?.(next);
-    },
-    [onSelect],
-  );
+  const applySelection = useCallback((next: SelectionState) => {
+    selectionRef.current = next;
+    setSelection(next);
+    callbacksRef.current.onSelect?.(next);
+  }, []);
 
   // Keyboard navigation (plan 3.5b): arrows move the selection word by word
   // / ayah by ayah; Enter opens the inspector. RTL reading order means
   // ArrowLeft advances ("next") and ArrowRight goes back.
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
-      if (!layoutIndex) return;
+      if (!layoutIndexRef.current) return;
       // Leave modifier combinations and native text editing alone.
       if (e.ctrlKey || e.metaKey || e.altKey) return;
       const target = e.target as HTMLElement | null;
@@ -228,24 +240,28 @@ export function usePreviewPointer(
       }
 
       const moveWord = (direction: 'next' | 'prev'): boolean => {
+        const index = layoutIndexRef.current;
+        if (!index) return false;
         const current = selectionRef.current.current;
         const start = current
-          ? adjacentWord(layoutIndex, current, direction)
+          ? adjacentWord(index, current, direction)
           : direction === 'next'
-            ? firstWord(layoutIndex)
-            : lastWord(layoutIndex);
+            ? firstWord(index)
+            : lastWord(index);
         if (!start) return false;
         applySelection({ type: 'word', start, end: start, current: start });
         return true;
       };
 
       const moveAyah = (direction: 'next' | 'prev'): boolean => {
+        const index = layoutIndexRef.current;
+        if (!index) return false;
         const current = selectionRef.current.current;
         const start = current
-          ? adjacentAyah(layoutIndex, current, direction)
+          ? adjacentAyah(index, current, direction)
           : direction === 'next'
-            ? firstWord(layoutIndex)
-            : lastWord(layoutIndex);
+            ? firstWord(index)
+            : lastWord(index);
         if (!start) return false;
         applySelection({ type: 'word', start, end: start, current: start });
         return true;
@@ -266,7 +282,7 @@ export function usePreviewPointer(
           handled = moveAyah('prev');
           break;
         case 'Enter':
-          onOpenInspector?.();
+          callbacksRef.current.onOpenInspector?.();
           handled = true;
           break;
         default:
@@ -274,7 +290,7 @@ export function usePreviewPointer(
       }
       if (handled) e.preventDefault();
     },
-    [layoutIndex, onOpenInspector, applySelection],
+    [applySelection],
   );
 
   // Setup event listeners
@@ -332,18 +348,15 @@ export function usePreviewPointer(
     hover,
     selection,
     clearSelection: () => {
-      setSelection({
+      const cleared: SelectionState = {
         type: 'word',
         start: null,
         end: null,
         current: null,
-      });
-      onSelect?.({
-        type: 'word',
-        start: null,
-        end: null,
-        current: null,
-      });
+      };
+      selectionRef.current = cleared;
+      setSelection(cleared);
+      callbacksRef.current.onSelect?.(cleared);
     },
   };
 }
