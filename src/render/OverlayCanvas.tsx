@@ -97,7 +97,9 @@ function paint(ctx: CanvasRenderingContext2D, props: OverlayCanvasProps): void {
     const box = boxOf(layoutIndex, hover.word);
     if (box) {
       ctx.fillStyle = accentSoft;
-      ctx.globalAlpha = 0.55;
+      // A hint of the words underneath must stay readable: hover is feedback,
+      // not a highlight of the text itself.
+      ctx.globalAlpha = 0.28;
       ctx.fillRect(box.x, box.y, box.width, box.height);
       ctx.globalAlpha = 1;
       ctx.strokeStyle = accent;
@@ -120,7 +122,9 @@ function paint(ctx: CanvasRenderingContext2D, props: OverlayCanvasProps): void {
     if (boxes.length > 0) {
       if (boxes.length > 1) {
         ctx.fillStyle = accentSoft;
+        ctx.globalAlpha = 0.28;
         for (const box of boxes) ctx.fillRect(box.x, box.y, box.width, box.height);
+        ctx.globalAlpha = 1;
       }
       ctx.strokeStyle = accent;
       ctx.lineWidth = 2;

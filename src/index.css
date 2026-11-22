@@ -893,7 +893,9 @@ svg {
   flex: 1 1 auto;
   min-height: 0;
   display: grid;
-  grid-template-columns: 264px minmax(0, 1fr) 300px;
+  /* source rail · stage · look rail · word style. The style column is the
+     planner's fourth zone; it disappears first on narrower screens. */
+  grid-template-columns: 264px minmax(0, 1fr) 300px 280px;
 }
 
 .rail {
@@ -1858,9 +1860,19 @@ svg {
    Responsive — rails stack under the stage, transport sticks
    ═══════════════════════════════════════════════════════════════════ */
 
+@media (max-width: 1440px) {
+  .studio {
+    grid-template-columns: 240px minmax(0, 1fr) 268px 264px;
+  }
+}
+
 @media (max-width: 1180px) {
   .studio {
     grid-template-columns: 240px minmax(0, 1fr) 268px;
+  }
+  /* The style panel joins the look rail rather than shrinking the stage. */
+  .rail--style {
+    display: none;
   }
   .rail {
     padding: var(--s-4) var(--s-3) var(--s-5);
@@ -1883,6 +1895,11 @@ svg {
   }
   .rail--look {
     order: 3;
+  }
+  .rail--style {
+    display: block;
+    order: 4;
+    border-inline-start: none;
   }
   .stage-body {
     height: min(58vh, 560px);

@@ -38,6 +38,14 @@ import {
 } from './components/icons';
 import { applyTheme, flipTheme, readTheme } from './lib/theme';
 import type { Theme } from './lib/theme';
+import { Inspector } from './render/Inspector';
+import { OverlayCanvas } from './render/OverlayCanvas';
+import { usePreviewPointer } from './render/usePreviewPointer';
+import type { SelectionState } from './render/usePreviewPointer';
+import { useStyleEditing } from './render/useStyleEditing';
+import { createLayoutIndex } from './render/layoutIndex';
+import type { LayoutIndex } from './render/layoutIndex';
+import { useUndoShortcuts } from './render/undoShortcuts';
 
 /* ── Types & constants ── */
 
@@ -417,6 +425,15 @@ export default function App() {
   // Preview backing store, as a fraction of the logical (export) frame size.
   const [previewScale, setPreviewScale] = useState(1);
 
+  // Per-word styling (plan phase 4.3). `styleEditing` owns the StyleRule list
+  // the renderer resolves; the selection below decides which scope an edit
+  // lands on.
+  const styleEditing = useStyleEditing();
+  const [layoutIndex, setLayoutIndex] = useState<LayoutIndex | null>(null);
+  const [inspectorOpen, setInspectorOpen] = useState(true);
+  const rulesRef = useRef(styleEditing.rules);
+  rulesRef.current = styleEditing.rules;
+
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const ctxRef = useRef<CanvasRenderingContext2D | null>(null);
   const rafRef = useRef(0);
@@ -630,6 +647,9 @@ export default function App() {
     textOpacity,
     transformMode ? 'transform' : '',
     isExporting ? 'exporting' : '',
+    // Per-word rules change the frame; without this the stage would keep
+    // showing the previous paint until something else moved.
+    JSON.stringify(styleEditing.rules),
     previewWidth,
     previewHeight,
   ].join('|');
@@ -701,6 +721,7 @@ export default function App() {
               textColor: textColorRef.current,
               glowColor: glowColorRef.current,
               textOpacity: textOpacityRef.current,
+              rules: rulesRef.current,
               drawBackground: (c) =>
                 drawBackground(
                   c,
@@ -739,6 +760,94 @@ export default function App() {
     rafRef.current = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(rafRef.current);
   }, []);
+
+  /* ── Word selection and styling (plan phase 4) ── */
+
+  // The hit-test index only makes sense for the verse currently painted, so
+  // rebuild it when the visible verse, its layout or the frame size changes.
+  const activeVerseForIndex = useMemo<VerseTimelineEntry | null>(() => {
+    const tl = timeline;
+    if (!tl || tl.verses.length === 0) return null;
+    // The loop paints the poster frame while the stage rests at t≈0, so the
+    // index has to test the same instant or every hit lands on the wrong ayah.
+    const atRest = !isPlaying && playhead < 0.05;
+    const t = atRest ? posterTimeOf(tl.verses) : playhead;
+    return (
+      tl.verses.find((v) => compareToWindow(t, v.startSeconds, v.endSeconds) === 0) ??
+      tl.verses[0] ??
+      null
+    );
+  }, [timeline, playhead, isPlaying]);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const frame = ASPECTS[aspect];
+    if (!canvas || !activeVerseForIndex || !uthmaniFontReady) {
+      setLayoutIndex(null);
+      return;
+    }
+    try {
+      // The renderer only paints the ayah number on the verse's final screen
+      // chunk, so the index must agree or its last word is too wide to hit.
+      const fitsOneScreen =
+        maxWordsPerScreen <= 0 ||
+        !activeVerseForIndex.words ||
+        activeVerseForIndex.words.length <= maxWordsPerScreen;
+      const index = createLayoutIndex(canvas, activeVerseForIndex, {
+        fonts: fontsRef.current,
+        bounds: boundsRef.current,
+        align: 'center',
+        deviceScale: 1,
+        showAyahNumber: fitsOneScreen,
+      });
+      setLayoutIndex({
+        width: frame.width,
+        height: frame.height,
+        bounds: boundsRef.current,
+        verses: [
+          {
+            surah: parseInt(activeVerseForIndex.verseKey.split(':')[0], 10),
+            ayah: activeVerseForIndex.ayahNumber,
+            words: index,
+          },
+        ],
+      });
+    } catch {
+      // A canvas without a 2D context (unlikely) leaves the stage unselectable
+      // rather than breaking the app.
+      setLayoutIndex(null);
+    }
+  }, [activeVerseForIndex, aspect, uthmaniFontReady, maxWordsPerScreen]);
+
+  const handleSelect = useCallback(
+    (selection: SelectionState) => {
+      if (!selection.current) {
+        styleEditing.clearSelection();
+        return;
+      }
+      const nextRange =
+        selection.type === 'range' && selection.start && selection.end
+          ? { from: selection.start, to: selection.end }
+          : null;
+      styleEditing.selectWord(selection.current, nextRange);
+      // Selecting a word is the moment the inspector becomes useful, so make
+      // sure it is visible on a narrow layout.
+      setInspectorOpen(true);
+    },
+    [styleEditing],
+  );
+
+  const { hover, selection } = usePreviewPointer(transformMode ? null : canvasRef.current, {
+    layoutIndex,
+    onSelect: handleSelect,
+    onOpenInspector: () => setInspectorOpen(true),
+  });
+
+  useUndoShortcuts({
+    undo: styleEditing.undo,
+    redo: styleEditing.redo,
+    enabled: !isExporting,
+  });
 
   /* ── Transform overlay interactions ── */
 
@@ -1096,6 +1205,9 @@ export default function App() {
           textColor: textColorRef.current,
           glowColor: glowColorRef.current,
           textOpacity: textOpacityRef.current,
+          // Same rule list as the preview: the gate requires an export to
+          // show exactly what the stage showed.
+          rules: rulesRef.current,
           drawBackground: (c) => drawBackground(c, bgPresetRef.current, bgImageRef.current),
         },
         onProgress: (p) => {
@@ -1374,6 +1486,18 @@ export default function App() {
                 onPointerLeave={handlePointerLeave}
                 aria-label="Video preview"
               />
+              {/* Hover and selection live on their own canvas so an export can
+                  never pick them up. Hidden in transform mode, which owns the
+                  pointer for dragging the caption box. */}
+              {!transformMode && (
+                <OverlayCanvas
+                  layoutIndex={layoutIndex}
+                  hover={hover}
+                  selection={selection}
+                  frameWidth={ASPECTS[aspect].width}
+                  frameHeight={ASPECTS[aspect].height}
+                />
+              )}
               {isLoading && !timeline && (
                 <div className="stage-overlay">
                   <div className="skeleton-lines" aria-hidden="true">
@@ -1534,6 +1658,22 @@ export default function App() {
             />
           </section>
         </aside>
+
+        {/* Word styling shares the look rail: both edit how the frame paints,
+            and a fourth column would crowd the stage. */}
+        <div className="rail rail--style" aria-label="Word style">
+          <Inspector
+            selection={selection}
+            scopeLabel={styleEditing.scopeLabel}
+            currentStyle={styleEditing.currentStyle}
+            inheritedStyle={styleEditing.inheritedStyle}
+            hasOwnRule={styleEditing.hasOwnRule}
+            onPropertyChange={styleEditing.setProperty}
+            onReset={styleEditing.reset}
+            isOpen={inspectorOpen}
+            onToggle={() => setInspectorOpen((open) => !open)}
+          />
+        </div>
       </div>
 
       <div className="transport">
