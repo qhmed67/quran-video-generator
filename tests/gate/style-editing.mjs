@@ -240,6 +240,97 @@ try {
     `remaining light glyphs=${styled?.light}`,
   );
 
+  // The export renders frames through the same `renderFrame`, so a rule that
+  // the stage honours must survive into an exported frame. Checked on a scratch
+  // canvas rather than a real encode, which would need a codec and minutes.
+  const exported = await page.evaluate(async (word) => {
+    const { renderFrame, defaultBounds, clearRenderCaches } =
+      await import('/src/render/renderFrame.ts');
+    const canvas = document.createElement('canvas');
+    canvas.width = 540;
+    canvas.height = 960;
+    const words = [
+      { index: 0, text: 'يسٓ', startSeconds: 0, endSeconds: 1 },
+      { index: 1, text: 'وَٱلْقُرْءَانِ', startSeconds: 1, endSeconds: 2 },
+    ];
+    const timeline = {
+      version: 1,
+      units: { time: 'seconds' },
+      meta: {
+        granularity: 'word',
+        sourceChain: [],
+        reciterId: '6',
+        surah: 36,
+        versesFrom: 1,
+        versesTo: 1,
+        audioUrl: '',
+        clipStartOffsetSeconds: 0,
+        captions: {
+          uthmani: true,
+          translation: { enabled: false, translationId: 131, language: 'en' },
+        },
+      },
+      verses: [
+        {
+          verseKey: '36:1',
+          ayahNumber: 1,
+          startSeconds: 0,
+          endSeconds: 2,
+          uthmani: 'يسٓ وَٱلْقُرْءَانِ',
+          translation: '',
+          words,
+        },
+      ],
+      fade: { inSeconds: 0, outSeconds: 0 },
+    };
+    const fonts = {
+      uthmani: "'KFGQPC HAFS Uthmanic Script', serif",
+      translation: 'sans-serif',
+      uthmaniLoaded: true,
+    };
+    const base = {
+      tSeconds: 0.5,
+      timeline,
+      frameWidth: 1080,
+      frameHeight: 1920,
+      captionsOn: { uthmani: true, translation: false },
+      fonts,
+      bounds: defaultBounds(1080, 1920),
+      wordHighlightEnabled: false,
+    };
+    const countRed = () => {
+      const ctx = canvas.getContext('2d');
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      const d = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+      let red = 0;
+      for (let i = 0; i < d.length; i += 4) {
+        if (d[i] > 100 && d[i] > d[i + 1] + 40 && d[i] > d[i + 2] + 40) red += 1;
+      }
+      return red;
+    };
+    clearRenderCaches();
+    renderFrame(canvas, base);
+    const plain = countRed();
+    clearRenderCaches();
+    renderFrame(canvas, {
+      ...base,
+      rules: [
+        {
+          id: 'w',
+          target: { kind: 'word', ref: { surah: 36, ayah: 1, word: 0 } },
+          props: { color: '#ff2200' },
+        },
+      ],
+    });
+    return { plain, styled: countRed(), word };
+  }, target);
+
+  check(
+    'an exported frame shows the styled word',
+    exported.styled > 0 && exported.plain === 0,
+    `plain=${exported.plain} styled=${exported.styled}`,
+  );
+
   // Undo restores the frame. Focus the canvas first: inside a text field the
   // shortcut deliberately defers to the browser's own undo.
   await page.locator('canvas[aria-label="Video preview"]').click({ position: { x: 8, y: 8 } });
