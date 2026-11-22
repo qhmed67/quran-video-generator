@@ -140,7 +140,7 @@ export function patchRule(
 ): StyleRule[] {
   const key = targetKey(target);
   const existing = findRule(rules, target);
-  const merged: WordStyleOverrides = { ...(existing?.props ?? {}), ...patch };
+  const merged: WordStyleOverrides = { ...existing?.props, ...patch };
   return writeRule(rules, target, pruneNulls(merged), key);
 }
 

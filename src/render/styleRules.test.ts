@@ -212,11 +212,9 @@ describe('clearRule', () => {
 describe('inheritedStyle', () => {
   it('ignores the scope being edited but keeps its parents', () => {
     const wordTarget = scopeToTarget({ kind: 'word', ref: w(1, 1) });
-    const rules = patchRule(
-      patchRule([], { kind: 'global' }, { fontScale: 1.6 }),
-      wordTarget,
-      { color: '#ff0000' },
-    );
+    const rules = patchRule(patchRule([], { kind: 'global' }, { fontScale: 1.6 }), wordTarget, {
+      color: '#ff0000',
+    });
     const inherited = inheritedStyle({
       rules,
       target: wordTarget,
