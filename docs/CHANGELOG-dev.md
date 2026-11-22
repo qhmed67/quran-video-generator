@@ -280,3 +280,38 @@ they are standalone and unused by the app shell.
 - The plan's Phase 2.3 asks for a font-loader port; the shipped shape is
   `FontLoader` (port) + `FontSet` (core value) — resolved fonts are passed through
   the render options as today.
+
+## Phase 4 gate — Per-word styling reaches the frame (2026-11-24)
+
+**What changed.**
+
+- The pipeline is connected. `useStyleEditing` owns the `StyleRule[]`, the
+  scope an edit targets, and undo/redo; `Inspector` writes the rules;
+  `renderFrame` resolves them per word; the preview loop and the export call
+  receive the same list, so an export shows exactly what the stage showed.
+- `tests/gate/style-editing.mjs` (`npm run test:gate`, wired into
+  `npm run check`) automates the plan's gate: hover leaves the frame
+  unchanged, recolouring one word changes only that word, undo restores it.
+  It counts pixels on the preview canvas, so a rule that never reaches the
+  renderer fails.
+
+**Bugs found on the way.** Each was invisible before the gate existed.
+
+- `loadFonts` checked `document.fonts.check()` immediately after a
+  `fonts.load()` that resolves when loading *starts*. On a slow first load the
+  stage fell back to a serif for the whole session (6 of 8 cold loads), and
+  word hit-testing stayed disabled with it.
+- `createLayoutIndex` re-derived the text layout instead of reusing the
+  renderer's, treated `word.x` as a left edge when RTL puts it at the right
+  edge, and always appended the ayah number. Every hit landed off its word.
+- `usePreviewPointer` rebound its DOM listeners on every index change (hover
+  dropped under a stationary pointer) and converted the pointer into the
+  preview's backing store rather than frame coordinates.
+- Undo mutated its stacks inside a `setState` updater; React may invoke an
+  updater twice, which emptied the stack. It now uses the pure history in
+  `core`.
+- The layout index followed `playhead` while the resting stage paints the
+  poster frame, so the index pointed at a different ayah than the one shown.
+
+**Gate.** Green. `npm run check`: 112 unit tests, 4 golden shots unchanged,
+8/8 gate checks, build clean.
