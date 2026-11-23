@@ -57,10 +57,10 @@ async function waitForServer(timeoutMs) {
 }
 
 await waitForServer();
+// CI installs the Playwright browsers; locally a system Chrome may be set
+// explicitly via CHROME_PATH. `null` falls back to Playwright's own browser.
 const browser = await chromium.launch(
-  process.env.CHROME_PATH
-    ? { executablePath: process.env.CHROME_PATH }
-    : { executablePath: '/usr/bin/google-chrome-stable' },
+  process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : {},
 );
 let results;
 try {

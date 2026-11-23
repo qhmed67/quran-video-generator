@@ -18,6 +18,8 @@ import {
   type WordSegmentSeconds,
   compareToWindow,
   toArabicIndicDigits,
+  type Annotation,
+  resolveTextStyle,
 } from '@qvg/core';
 import type { FontSet } from './fonts';
 import { layoutTextBlock, rowHeightFor } from './layout';
@@ -71,6 +73,8 @@ export interface FrameRenderOptions {
    * legacy flat style controls (textColor/glowColor/textOpacity/…) are used.
    */
   rules?: StyleRule[];
+  /** User annotations anchored to this recitation (plan phase 3.3). */
+  annotations?: Annotation[];
 }
 
 const DEFAULT_TEXT_COLOR: HslColor = { h: 0, s: 0, l: 100 };
@@ -380,6 +384,51 @@ export function layoutUthmaniText(
     fits: layout.fits,
     fontSize: layout.fontSize,
   };
+}
+
+/**
+ * Word boxes in the same coordinates the renderer paints with.
+ *
+ * The hit-test index must agree with the frame pixel for pixel, so it reuses
+ * this layout instead of re-deriving fonts, gaps and vertical centring. The
+ * returned coordinates are relative to the frame (not to the text box): the
+ * caller only adds nothing, because the renderer translates by the same
+ * `bounds` origin before painting.
+ */
+export function layoutVerseWordBoxes(
+  ctx: Canvas2DContext,
+  verse: VerseTimelineEntry,
+  opts: { fonts: FontSet; bounds: TextBounds; align: HorizontalAlign; showAyahNumber?: boolean },
+): {
+  height: number;
+  boxes: { index: number; text: string; x: number; y: number; width: number; height: number }[];
+} {
+  const { fonts, bounds, align, showAyahNumber } = opts;
+  const layout = buildUthmaniLayout(ctx, verse, {
+    fonts,
+    boxW: bounds.width,
+    boxH: bounds.height,
+    align,
+    showAyahNumber,
+  });
+  const boxes = layout.rows.flatMap((row) =>
+    row.words.map((word) => ({
+      index: word.index,
+      text: word.text,
+      // `word.x` is the pen position, which for RTL is the word's RIGHT edge:
+      // Arabic glyphs extend leftward from it. The box therefore starts one
+      // width earlier.
+      x: bounds.x + word.x - word.width,
+      // `row.y` is the baseline inside the block, `blockTopRel` centres the
+      // block in the box, and `bounds.y` is the box origin in the frame.
+      y: bounds.y + layout.blockTopRel + row.y,
+      width: word.width,
+      // Glyph height, not the row pitch: the row includes the line gap, which
+      // would make a hit area taller than the words a reader can see.
+      height: layout.fontSize,
+    })),
+  );
+  return { height: layout.height, boxes };
 }
 
 /**
@@ -1002,6 +1051,119 @@ function drawTranslation(
   ctx.restore();
 }
 
+/**
+ * Draws user annotations anchored to the active ayah (plan phase 3.3).
+ *
+ * Annotations are separate text from the Qur'anic line — never the mushaf
+ * face, never ornamented. `above` and `below` stack outside the caption
+ * block; `inline-after` is not drawn here because inline flow would require
+ * relaying out the mushaf line itself.
+ */
+function drawAnnotations(
+  ctx: Canvas2DContext,
+  opts: {
+    annotations: Annotation[];
+    verse: VerseTimelineEntry;
+    surah: number;
+    width: number;
+    height: number;
+    opacity: number;
+    block: { top: number; bottom: number };
+    deviceScale: number;
+  },
+): void {
+  const { annotations, verse, surah, width, height, opacity, block, deviceScale } = opts;
+  if (annotations.length === 0) return;
+
+  const matches = annotations.filter(
+    (a) =>
+      a.anchor.kind === 'ayah' && a.anchor.surah === surah && a.anchor.ayah === verse.ayahNumber,
+  );
+  if (matches.length === 0) return;
+
+  const margin = Math.round(height * 0.04);
+  const gap = Math.round(height * 0.015);
+  // Annotations never push into the letterbox edge: everything below starts
+  // from the safe margin and, when crowded, shifts above the block instead.
+  const bottomLimit = height - margin;
+
+  let belowY = block.bottom + gap;
+  let aboveY = block.top - gap;
+  for (const annotation of matches) {
+    const style = resolveTextStyle(annotation.style);
+    const fontSize = Math.round(height * (style.fontSize / 1080) * 19.2) || style.fontSize;
+    const wrapped = wrapAnnotationText(ctx, annotation.text, width - margin * 2, style, fontSize);
+    const lineHeight = Math.round(fontSize * 1.5);
+    const textHeight = wrapped.length * lineHeight;
+
+    const isRtl = annotation.lang === 'ar' || /[\u0600-\u06FF]/.test(annotation.text);
+    ctx.save();
+    ctx.globalAlpha = opacity * style.opacity;
+    ctx.fillStyle = style.color;
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.75)';
+    ctx.shadowBlur = Math.round(height * 0.005) * deviceScale;
+    ctx.font = `400 ${fontSize}px ${style.fontFamily}`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'alphabetic';
+    ctx.direction = isRtl ? 'rtl' : 'ltr';
+
+    if (annotation.placement === 'above') {
+      const top = aboveY - textHeight;
+      if (top < margin) {
+        // No room above: skip rather than cover the mushaf line.
+        ctx.restore();
+        continue;
+      }
+      for (const line of wrapped) {
+        ctx.fillText(line, width / 2, aboveY);
+        aboveY -= lineHeight;
+      }
+    } else {
+      if (belowY + textHeight > bottomLimit) {
+        ctx.restore();
+        continue;
+      }
+      for (const line of wrapped) {
+        belowY += lineHeight;
+        ctx.fillText(line, width / 2, belowY);
+      }
+    }
+    ctx.restore();
+  }
+}
+
+/**
+ * Greedy word wrap measured against the annotation's own face.
+ *
+ * Arabic has no spaces in the mushaf but annotations are user prose, so a
+ * whitespace split works for both scripts.
+ */
+function wrapAnnotationText(
+  ctx: Canvas2DContext,
+  text: string,
+  maxWidth: number,
+  _style: { align: 'left' | 'center' | 'right' },
+  fontSize: number,
+): string[] {
+  void _style;
+  void fontSize;
+  const words = text.split(/\s+/).filter((w) => w.length > 0);
+  if (words.length === 0) return [];
+  const lines: string[] = [];
+  let current = words[0];
+  for (let i = 1; i < words.length; i += 1) {
+    const candidate = `${current} ${words[i]}`;
+    if (ctx.measureText(candidate).width <= maxWidth) {
+      current = candidate;
+    } else {
+      lines.push(current);
+      current = words[i];
+    }
+  }
+  lines.push(current);
+  return lines;
+}
+
 export function drawTransformOverlay(
   ctx: Canvas2DContext,
   bounds: TextBounds,
@@ -1242,6 +1404,16 @@ export function renderFrame(canvas: CanvasLike, opts: FrameRenderOptions): void 
       deviceScale,
     });
   }
+  drawAnnotations(ctx, {
+    annotations: opts.annotations ?? [],
+    verse: active,
+    surah: opts.timeline.meta.surah,
+    width,
+    height,
+    opacity,
+    block: block ?? { top: height - height * 0.25, bottom: height - height * 0.12 },
+    deviceScale,
+  });
 
   ctx.restore();
 }

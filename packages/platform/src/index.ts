@@ -25,3 +25,20 @@ export type { FontLoader } from './ports/FontLoader';
 export type { HapticsPort } from './ports/HapticsPort';
 export { HttpError, type HttpPort } from './ports/HttpPort';
 export type { StoragePort } from './ports/StoragePort';
+export {
+  AUTOSAVE_DEBOUNCE_MS,
+  AUTOSAVE_PREFIX,
+  PROJECT_EXTENSION,
+  createAutosave,
+  deleteAutosave,
+  deserializeProject,
+  exportProjectFile,
+  importProjectFile,
+  listAutosaved,
+  loadAutosaved,
+  projectFileName,
+  projectFromSettings,
+  serializeProject,
+  touchProject,
+} from './projectStore';
+export type { PersistenceStatus } from './projectStore';

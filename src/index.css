@@ -768,6 +768,13 @@ svg {
   color: var(--danger);
 }
 
+/* Saved / imported confirmations: ink, not a warning colour. */
+.notice--info {
+  border-color: var(--rule-strong);
+  background: var(--surface-2);
+  color: var(--ink-2);
+}
+
 .notice__text {
   flex: 1;
   min-width: 0;
@@ -893,7 +900,9 @@ svg {
   flex: 1 1 auto;
   min-height: 0;
   display: grid;
-  grid-template-columns: 264px minmax(0, 1fr) 300px;
+  /* source rail · stage · look rail · word style. The style column is the
+     planner's fourth zone; it disappears first on narrower screens. */
+  grid-template-columns: 264px minmax(0, 1fr) 300px 280px;
 }
 
 .rail {
@@ -1858,9 +1867,19 @@ svg {
    Responsive — rails stack under the stage, transport sticks
    ═══════════════════════════════════════════════════════════════════ */
 
+@media (max-width: 1440px) {
+  .studio {
+    grid-template-columns: 240px minmax(0, 1fr) 268px 264px;
+  }
+}
+
 @media (max-width: 1180px) {
   .studio {
     grid-template-columns: 240px minmax(0, 1fr) 268px;
+  }
+  /* The style panel joins the look rail rather than shrinking the stage. */
+  .rail--style {
+    display: none;
   }
   .rail {
     padding: var(--s-4) var(--s-3) var(--s-5);
@@ -1883,6 +1902,11 @@ svg {
   }
   .rail--look {
     order: 3;
+  }
+  .rail--style {
+    display: block;
+    order: 4;
+    border-inline-start: none;
   }
   .stage-body {
     height: min(58vh, 560px);
@@ -2161,5 +2185,298 @@ svg {
   .route.is-leaving {
     opacity: 1;
     transform: none;
+  }
+}
+
+/* ── Word-style inspector (plan phase 4.3) ── */
+
+.stage-overlay-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.inspector {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  background: var(--surface);
+  border-inline-start: 1px solid var(--rule);
+}
+
+.inspector-content {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 20px;
+  min-width: 0;
+}
+
+.inspector-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.inspector-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+  padding-block-end: 6px;
+}
+
+.inspector-header::after,
+.inspector-title::after {
+  content: none;
+}
+
+.inheritance-info {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  background: var(--paper);
+}
+
+.inheritance-text {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.reset-button {
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent);
+  background: transparent;
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  padding: 4px 8px;
+  cursor: pointer;
+  transition:
+    background-color var(--dur-1) var(--ease-out),
+    border-color var(--dur-1) var(--ease-out);
+}
+
+.reset-button:hover:not(:disabled) {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
+
+.reset-button:disabled {
+  color: var(--muted);
+  cursor: default;
+  opacity: 0.6;
+}
+
+.inspector-empty {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--muted);
+}
+
+.property-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.group-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 3px;
+  border: 1px solid var(--rule);
+  border-radius: 9999px;
+  background: var(--paper);
+}
+
+.group-tab {
+  flex: 1;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-2);
+  background: transparent;
+  border: 0;
+  border-radius: 9999px;
+  padding: 6px 8px;
+  cursor: pointer;
+  min-height: 32px;
+  transition:
+    background-color var(--dur-1) var(--ease-out),
+    color var(--dur-1) var(--ease-out);
+}
+
+.group-tab.active {
+  background: var(--accent);
+  color: var(--accent-on);
+}
+
+.property-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.property-control {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.property-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+
+.property-from {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--muted);
+  text-transform: none;
+}
+
+.property-unavailable {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--muted);
+}
+
+.property-control--effect {
+  padding: 10px;
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  background: var(--paper);
+}
+
+.effect-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.effect-head .property-label {
+  flex: 1;
+}
+
+.effect-note {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.effect-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-block-start: 8px;
+  padding-block-start: 8px;
+  border-block-start: 1px solid var(--rule);
+}
+
+.effect-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.effect-row__label {
+  flex: 0 0 64px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.effect-row__value {
+  min-width: 32px;
+  text-align: end;
+  color: var(--ink-2);
+}
+
+.range-input {
+  flex: 1;
+  min-width: 0;
+  height: 16px;
+  accent-color: var(--accent);
+}
+
+.checkbox-input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.color-input {
+  width: 100%;
+  height: 32px;
+  padding: 2px;
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  background: var(--surface);
+  cursor: pointer;
+}
+
+.inspector-toggle {
+  display: none;
+}
+
+@media (max-width: 720px) {
+  .inspector {
+    border-inline-start: 0;
+    border-block-start: 1px solid var(--rule);
+    border-start-start-radius: 14px;
+    border-start-end-radius: 14px;
+  }
+
+  .inspector-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    align-self: flex-end;
+    min-width: 48px;
+    min-height: 48px;
+    margin: 8px 12px 0;
+    font: inherit;
+    font-weight: 600;
+    color: var(--ink);
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    border-radius: 10px;
+    cursor: pointer;
+  }
+
+  .inspector--closed .inspector-content {
+    display: none;
+  }
+
+  .group-tab,
+  .reset-button {
+    min-height: 44px;
+  }
+
+  .range-input,
+  .checkbox-input,
+  .color-input {
+    min-height: 44px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reset-button,
+  .group-tab {
+    transition: none;
   }
 }

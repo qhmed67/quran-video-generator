@@ -1,194 +1,173 @@
 /**
  * Overlay canvas for hover and selection feedback (plan phase 4.2).
  *
- * Draws hover highlights and selection indicators on a separate canvas.
- * Must never be baked into exports.
+ * Draws hover and selection boxes on a separate canvas stacked over the
+ * preview. It must never be baked into exports, so nothing here touches the
+ * frame renderer: the overlay only reads layout geometry.
+ *
+ * Colours come from the design tokens read off the document root, so the
+ * overlay follows the light/dark theme instead of carrying its own palette.
  */
 
-import { useEffect, useRef, useMemo } from 'react';
+import { useEffect, useRef } from 'react';
+import type { LayoutIndex } from './layoutIndex';
+import { sameWordRef } from './layoutIndex';
 import type { HoverState, SelectionState } from './usePreviewPointer';
 
 interface OverlayCanvasProps {
-  canvas: HTMLCanvasElement | null;
+  /** Layout geometry in logical frame coordinates. */
+  layoutIndex: LayoutIndex | null;
   hover: HoverState;
   selection: SelectionState;
-  width: number;
-  height: number;
-  deviceScale: number;
+  /** Logical (export) frame size the layout index is expressed in. */
+  frameWidth: number;
+  frameHeight: number;
 }
 
-export function OverlayCanvas({
-  canvas,
-  hover,
-  selection,
-  width,
-  height,
-  deviceScale,
-}: OverlayCanvasProps) {
-  const overlayRef = useRef<HTMLCanvasElement>(null);
+interface Box {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
 
-  // Create overlay canvas that matches the main canvas
+/** Look up a word's painted box in the layout index. */
+function boxOf(
+  layoutIndex: LayoutIndex,
+  ref: { surah: number; ayah: number; word: number },
+): Box | null {
+  for (const verse of layoutIndex.verses) {
+    if (verse.surah !== ref.surah || verse.ayah !== ref.ayah) continue;
+    for (const word of verse.words.words) {
+      if (word.index !== ref.word) continue;
+      // Words are positioned by their baseline, so the box grows upward.
+      return { x: word.x, y: word.y - word.height, width: word.width, height: word.height };
+    }
+  }
+  return null;
+}
+
+/** Every word between two refs in reading order, inclusive. */
+function boxesInRange(
+  layoutIndex: LayoutIndex,
+  from: { surah: number; ayah: number; word: number },
+  to: { surah: number; ayah: number; word: number },
+): Box[] {
+  const ordered = layoutIndex.verses.flatMap((verse) =>
+    verse.words.words.map((word) => ({
+      surah: verse.surah,
+      ayah: verse.ayah,
+      word: word.index,
+      box: { x: word.x, y: word.y - word.height, width: word.width, height: word.height },
+    })),
+  );
+  const startsBefore = (a: (typeof ordered)[number], b: typeof from) =>
+    a.surah !== b.surah ? a.surah < b.surah : a.ayah !== b.ayah ? a.ayah < b.ayah : a.word < b.word;
+
+  return ordered
+    .filter((entry) => !startsBefore(entry, from) && startsBefore(entry, to) === false)
+    .map((entry) => entry.box);
+}
+
+function readToken(styles: CSSStyleDeclaration, name: string, fallback: string): string {
+  const value = styles.getPropertyValue(name).trim();
+  return value.length > 0 ? value : fallback;
+}
+
+/**
+ * Hover: a translucent fill plus a hairline. Selection: a solid 2px outline
+ * and, for ranges, a fill joining the boxes. Both avoid animating the
+ * Qur'anic text they sit on.
+ */
+function paint(ctx: CanvasRenderingContext2D, props: OverlayCanvasProps): void {
+  const { layoutIndex, hover, selection, frameWidth, frameHeight } = props;
+  ctx.clearRect(0, 0, frameWidth, frameHeight);
+  if (!layoutIndex) return;
+
+  const styles = getComputedStyle(document.documentElement);
+  const accent = readToken(styles, '--accent', '#1c6b4b');
+  const accentSoft = readToken(styles, '--accent-soft', 'rgba(28, 107, 75, 0.18)');
+
+  ctx.save();
+  ctx.lineJoin = 'round';
+  ctx.lineCap = 'round';
+
+  // Hover first so a selected word's outline stays on top.
+  if (hover.word) {
+    const box = boxOf(layoutIndex, hover.word);
+    if (box) {
+      ctx.fillStyle = accentSoft;
+      // A hint of the words underneath must stay readable: hover is feedback,
+      // not a highlight of the text itself.
+      ctx.globalAlpha = 0.28;
+      ctx.fillRect(box.x, box.y, box.width, box.height);
+      ctx.globalAlpha = 1;
+      ctx.strokeStyle = accent;
+      ctx.lineWidth = 1;
+      ctx.strokeRect(box.x + 0.5, box.y + 0.5, box.width - 1, box.height - 1);
+    }
+  }
+
+  const start = selection.start ?? selection.current;
+  const end = selection.end ?? selection.current;
+  if (start && end) {
+    const boxes =
+      selection.type === 'range' && !sameWordRef(start, end)
+        ? boxesInRange(layoutIndex, start, end)
+        : (() => {
+            const box = boxOf(layoutIndex, start);
+            return box ? [box] : [];
+          })();
+
+    if (boxes.length > 0) {
+      if (boxes.length > 1) {
+        ctx.fillStyle = accentSoft;
+        ctx.globalAlpha = 0.28;
+        for (const box of boxes) ctx.fillRect(box.x, box.y, box.width, box.height);
+        ctx.globalAlpha = 1;
+      }
+      ctx.strokeStyle = accent;
+      ctx.lineWidth = 2;
+      for (const box of boxes) {
+        ctx.strokeRect(box.x + 1, box.y + 1, box.width - 2, box.height - 2);
+      }
+    }
+  }
+
+  ctx.restore();
+}
+
+export function OverlayCanvas(props: OverlayCanvasProps) {
+  const overlayRef = useRef<HTMLCanvasElement | null>(null);
+  const { frameWidth, frameHeight } = props;
+
   useEffect(() => {
-    if (!canvas || !overlayRef.current) return;
-
     const overlay = overlayRef.current;
+    if (!overlay) return;
+    if (overlay.width !== frameWidth) overlay.width = frameWidth;
+    if (overlay.height !== frameHeight) overlay.height = frameHeight;
     const ctx = overlay.getContext('2d');
     if (!ctx) return;
-
-    // Set overlay canvas size to match main canvas
-    overlay.width = canvas.width;
-    overlay.height = canvas.height;
-
-    // Clear overlay
-    ctx.clearRect(0, 0, overlay.width, overlay.height);
-  }, [canvas]);
-
-  // Draw hover and selection feedback
-  const drawFeedback = useMemo(() => {
-    if (!canvas || !overlayRef.current) return;
-
-    const overlay = overlayRef.current;
-    const ctx = overlay.getContext('2d');
-    if (!ctx) return;
-
-    // Clear overlay
-    ctx.clearRect(0, 0, overlay.width, overlay.height);
-
-    // Apply device scale for high DPI displays
-    ctx.save();
-    ctx.scale(deviceScale, deviceScale);
-
-    // Draw hover highlight
-    if (hover.word && hover.position) {
-      drawHoverHighlight(ctx, hover.word, width, height);
-    }
-
-    // Draw selection indicator
-    if (selection.current) {
-      drawSelectionIndicator(ctx, selection, width, height);
-    }
-
-    ctx.restore();
-  }, [canvas, hover, selection, width, height, deviceScale]);
-
-  // Trigger redraw when hover or selection changes
-  useEffect(() => {
-    // The drawFeedback is called automatically when dependencies change
-  }, [drawFeedback]);
+    // Repaint on token changes too (theme toggle): the canvas holds pixels,
+    // so it cannot inherit CSS.
+    paint(ctx, props);
+    const observer = new MutationObserver(() => paint(ctx, props));
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['data-theme', 'class', 'style'],
+    });
+    return () => observer.disconnect();
+    // `props` is a fresh object each render; depend on its parts instead.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [props.layoutIndex, props.hover, props.selection, frameWidth, frameHeight]);
 
   return (
     <canvas
       ref={overlayRef}
-      style={{
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        pointerEvents: 'none', // Allow events to pass through to the main canvas
-        zIndex: 10,
-      }}
+      className="stage-overlay-canvas"
+      width={frameWidth}
+      height={frameHeight}
+      aria-hidden="true"
     />
   );
-}
-
-// Helper functions for drawing
-function drawHoverHighlight(
-  ctx: CanvasRenderingContext2D,
-  _word: { surah: number; ayah: number; word: number },
-  width: number,
-  height: number,
-) {
-  // For now, just draw a simple highlight around the word
-  // In a real implementation, we'd need to get the word position from the layout index
-
-  ctx.strokeStyle = 'rgba(96, 165, 250, 0.8)';
-  ctx.lineWidth = 2;
-  ctx.setLineDash([4, 4]);
-
-  // This is a placeholder - in a real implementation, we'd get the actual word bounds
-  // For now, draw a rectangle in the center of the screen
-  const centerX = width / 2;
-  const centerY = height / 2;
-  const wordWidth = 100;
-  const wordHeight = 40;
-
-  ctx.strokeRect(centerX - wordWidth / 2, centerY - wordHeight / 2, wordWidth, wordHeight);
-
-  ctx.setLineDash([]);
-}
-
-function drawSelectionIndicator(
-  ctx: CanvasRenderingContext2D,
-  selection: SelectionState,
-  width: number,
-  height: number,
-) {
-  // Draw selection indicator based on selection type
-  if (selection.current) {
-    ctx.strokeStyle = 'rgba(59, 130, 246, 1)';
-    ctx.lineWidth = 2;
-
-    if (selection.type === 'word') {
-      // Draw a solid rectangle around the selected word
-      const centerX = width / 2;
-      const centerY = height / 2;
-      const wordWidth = 100;
-      const wordHeight = 40;
-
-      ctx.strokeRect(centerX - wordWidth / 2, centerY - wordHeight / 2, wordWidth, wordHeight);
-
-      // Draw corner handles
-      const handleSize = 8;
-      const handleOffset = 4;
-
-      // Top-left
-      ctx.fillStyle = 'rgba(59, 130, 246, 1)';
-      ctx.fillRect(
-        centerX - wordWidth / 2 - handleOffset,
-        centerY - wordHeight / 2 - handleOffset,
-        handleSize,
-        handleSize,
-      );
-
-      // Top-right
-      ctx.fillRect(
-        centerX + wordWidth / 2 - handleSize + handleOffset,
-        centerY - wordHeight / 2 - handleOffset,
-        handleSize,
-        handleSize,
-      );
-
-      // Bottom-left
-      ctx.fillRect(
-        centerX - wordWidth / 2 - handleOffset,
-        centerY + wordHeight / 2 - handleSize + handleOffset,
-        handleSize,
-        handleSize,
-      );
-
-      // Bottom-right
-      ctx.fillRect(
-        centerX + wordWidth / 2 - handleSize + handleOffset,
-        centerY + wordHeight / 2 - handleSize + handleOffset,
-        handleSize,
-        handleSize,
-      );
-    } else if (selection.type === 'range') {
-      // Draw a dashed rectangle around the range
-      if (selection.start && selection.end) {
-        const centerX = width / 2;
-        const centerY = height / 2;
-        const rangeWidth = 200;
-        const rangeHeight = 60;
-
-        ctx.setLineDash([8, 4]);
-        ctx.strokeRect(
-          centerX - rangeWidth / 2,
-          centerY - rangeHeight / 2,
-          rangeWidth,
-          rangeHeight,
-        );
-        ctx.setLineDash([]);
-      }
-    }
-  }
 }

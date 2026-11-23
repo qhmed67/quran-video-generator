@@ -77,8 +77,9 @@ describe('createLayoutIndex', () => {
     expect(layoutIndex.words[0].x).toBeGreaterThan(bounds.x);
     expect(layoutIndex.words[0].y).toBeGreaterThan(bounds.y);
 
-    // Check last word includes ayah number
-    expect(layoutIndex.words[3].text).toContain('1'); // Regular 1 for test
+    // The last word carries the ayah number in the mushaf's own digits, as
+    // the renderer paints it.
+    expect(layoutIndex.words[3].text).toContain('١');
   });
 
   it('handles verse without words', () => {

@@ -1,0 +1,18 @@
+{
+  "id": "fixture-0",
+  "name": "Unversioned draft",
+  "createdAt": "2026-11-23T01:56:21.980Z",
+  "updatedAt": "2026-11-23T01:56:21.980Z",
+  "source": {
+    "reciterId": 1,
+    "surah": 1,
+    "fromAyah": 1,
+    "toAyah": 7
+  },
+  "format": "9:16",
+  "background": {
+    "preset": "forest"
+  },
+  "rules": [],
+  "annotations": []
+}
