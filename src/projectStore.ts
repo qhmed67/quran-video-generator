@@ -8,7 +8,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { Project, StyleRule } from '@qvg/core';
+import type { Annotation, Project, StyleRule } from '@qvg/core';
 import type { FilePort, StoragePort } from '@qvg/platform';
 import { LocalStoragePort, BrowserFilePort } from '@qvg/platform/web';
 import {
@@ -30,6 +30,7 @@ export interface StudioSnapshot {
   aspect: '9:16' | '1:1';
   bgId: string;
   rules: StyleRule[];
+  annotations: Annotation[];
 }
 
 export interface UseProjectStoreOptions {
@@ -89,7 +90,7 @@ export function useProjectStore({ snapshot, revision }: UseProjectStoreOptions):
       format: s.aspect,
       backgroundPreset: s.bgId,
       rules: s.rules,
-      annotations: [],
+      annotations: s.annotations,
     });
   }, [documentId]);
 

@@ -50,6 +50,7 @@ import { createLayoutIndex } from './render/layoutIndex';
 import type { LayoutIndex } from './render/layoutIndex';
 import { useUndoShortcuts } from './render/undoShortcuts';
 import { useProjectStore } from './projectStore';
+import { AnnotationEditor } from './render/AnnotationEditor';
 import type { Project } from '@qvg/core';
 
 /* ── Types & constants ── */
@@ -436,9 +437,41 @@ export default function App() {
   const styleEditing = useStyleEditing();
   const [layoutIndex, setLayoutIndex] = useState<LayoutIndex | null>(null);
   const [inspectorOpen, setInspectorOpen] = useState(true);
+  const [notesOpen, setNotesOpen] = useState(false);
   const rulesRef = useRef(styleEditing.rules);
   rulesRef.current = styleEditing.rules;
-  const annotationsRef = useRef<Project['annotations']>([]);
+  const [annotations, setAnnotations] = useState<Project['annotations']>([]);
+  const annotationsRef = useRef<Project['annotations']>(annotations);
+  annotationsRef.current = annotations;
+  const annotationsPast = useRef<Project['annotations'][]>([]);
+  const annotationsFuture = useRef<Project['annotations'][]>([]);
+
+  const commitAnnotations = useCallback((next: Project['annotations']) => {
+    setAnnotations((current) => {
+      annotationsPast.current = [...annotationsPast.current, current].slice(-100);
+      annotationsFuture.current = [];
+      return next;
+    });
+    bumpRenderRevision();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- stable helper, deps intentionally empty
+  }, []);
+
+  const undoAnnotations = useCallback(() => {
+    setAnnotations((current) => {
+      const previous = annotationsPast.current[annotationsPast.current.length - 1];
+      if (!previous) return current;
+      annotationsPast.current = annotationsPast.current.slice(0, -1);
+      annotationsFuture.current = [current, ...annotationsFuture.current];
+      return previous;
+    });
+  }, []);
+
+  // Annotation and rule edits share one undo history in practice, so a
+  // Ctrl+Z after a note walks both.
+  const undoEither = useCallback(() => {
+    styleEditing.undo();
+    undoAnnotations();
+  }, [styleEditing, undoAnnotations]);
 
   // Project persistence (plan phase 3.4): the document is derived from the
   // studio's settings and autosaved; import/export go through the file port.
@@ -451,8 +484,14 @@ export default function App() {
       aspect,
       bgId,
       rules: styleEditing.rules,
+      annotations,
     },
-    revision: surah * 1_000_000 + from * 1_000 + to + styleEditing.rules.length * 10_000_000_000,
+    revision:
+      surah * 1_000_000 +
+      from * 1_000 +
+      to +
+      styleEditing.rules.length * 10_000_000_000 +
+      annotations.length * 100_000_000_000,
   });
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -496,6 +535,9 @@ export default function App() {
   /** Bumped whenever something visual changes without a React state change
    *  (caption drag, cropped background, font load) so the loop repaints. */
   const renderRevisionRef = useRef(0);
+  function bumpRenderRevision() {
+    renderRevisionRef.current += 1;
+  }
   const frameSizeRef = useRef(ASPECTS['9:16']);
 
   captionsRef.current = { uthmani: true, translation: translationEnabled };
@@ -671,7 +713,7 @@ export default function App() {
     // Per-word rules change the frame; without this the stage would keep
     // showing the previous paint until something else moved.
     JSON.stringify(styleEditing.rules),
-    JSON.stringify(annotationsRef.current),
+    JSON.stringify(annotations),
     previewWidth,
     previewHeight,
   ].join('|');
@@ -867,7 +909,7 @@ export default function App() {
   });
 
   useUndoShortcuts({
-    undo: styleEditing.undo,
+    undo: undoEither,
     redo: styleEditing.redo,
     enabled: !isExporting,
   });
@@ -1178,13 +1220,15 @@ export default function App() {
       return null;
     });
     bgImageRef.current = canvas;
-    renderRevisionRef.current += 1;
+    bumpRenderRevision();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- stable helper, deps intentionally empty
   }, []);
 
   const handleClearImage = useCallback(() => {
     bgImageRef.current = null;
     setBgImageName(null);
-    renderRevisionRef.current += 1;
+    bumpRenderRevision();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- stable helper, deps intentionally empty
   }, []);
 
   /* ── Export ── */
@@ -1725,6 +1769,25 @@ export default function App() {
             onReset={styleEditing.reset}
             isOpen={inspectorOpen}
             onToggle={() => setInspectorOpen((open) => !open)}
+          />
+          <AnnotationEditor
+            selection={
+              selection.current
+                ? {
+                    surah: selection.current.surah,
+                    ayah: selection.current.ayah,
+                    word: selection.type === 'word' ? selection.current.word : undefined,
+                  }
+                : null
+            }
+            annotations={annotations}
+            onAnnotationAdd={(annotation) => commitAnnotations([...annotations, annotation])}
+            onAnnotationUpdate={(id, updates) =>
+              commitAnnotations(annotations.map((a) => (a.id === id ? { ...a, ...updates } : a)))
+            }
+            onAnnotationDelete={(id) => commitAnnotations(annotations.filter((a) => a.id !== id))}
+            isOpen={notesOpen}
+            onToggle={() => setNotesOpen((open) => !open)}
           />
         </div>
       </div>
