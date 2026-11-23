@@ -2480,3 +2480,161 @@ svg {
     transition: none;
   }
 }
+
+/* ── Annotation editor (plan phase 4.4) ── */
+
+.annotation-editor {
+  display: flex;
+  flex-direction: column;
+  border-block-start: 1px solid var(--rule);
+}
+
+.annotation-editor--empty {
+  padding: var(--s-5) var(--s-4);
+}
+
+.annotation-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
+  margin: var(--s-4) var(--s-4) 0;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink);
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: 9999px;
+  padding: 6px 12px;
+  cursor: pointer;
+  transition:
+    background-color var(--dur-1) var(--ease-out),
+    border-color var(--dur-1) var(--ease-out);
+}
+
+.annotation-toggle:hover {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
+
+.annotation-count {
+  color: var(--accent);
+}
+
+.editor-content {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: var(--s-4);
+}
+
+.annotation-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.annotation-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--rule);
+  border-radius: var(--r-sm);
+  background: var(--paper);
+}
+
+.annotation-preview {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.annotation-text {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.annotation-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.annotation-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.form-group select,
+.form-group input[type='number'] {
+  font: inherit;
+  font-size: 13px;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: var(--r-sm);
+  padding: 6px 8px;
+  min-height: 36px;
+}
+
+.form-group textarea {
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: var(--r-sm);
+  padding: 8px;
+  resize: vertical;
+}
+
+.form-group textarea:focus-visible,
+.form-group select:focus-visible,
+.form-group input:focus-visible {
+  outline: 2px solid var(--accent-ring);
+  outline-offset: 1px;
+  border-color: var(--accent);
+}
+
+.style-controls {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.form-actions {
+  display: flex;
+  gap: 8px;
+}
+
+@media (max-width: 720px) {
+  .annotation-toggle {
+    min-height: 48px;
+  }
+
+  .group-tab {
+    min-height: 44px;
+  }
+
+  .form-group select,
+  .form-group input[type='number'] {
+    min-height: 44px;
+  }
+}

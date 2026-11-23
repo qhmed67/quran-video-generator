@@ -1075,10 +1075,18 @@ function drawAnnotations(
   const { annotations, verse, surah, width, height, opacity, block, deviceScale } = opts;
   if (annotations.length === 0) return;
 
-  const matches = annotations.filter(
-    (a) =>
-      a.anchor.kind === 'ayah' && a.anchor.surah === surah && a.anchor.ayah === verse.ayahNumber,
-  );
+  // Word-anchored notes appear with the verse their word lives on: the
+  // renderer draws per-ayah, so a word note rides on its verse.
+  const matches = annotations.filter((a) => {
+    if (a.anchor.kind === 'ayah') {
+      return a.anchor.surah === surah && a.anchor.ayah === verse.ayahNumber;
+    }
+    return (
+      a.anchor.kind === 'word' &&
+      a.anchor.ref.surah === surah &&
+      a.anchor.ref.ayah === verse.ayahNumber
+    );
+  });
   if (matches.length === 0) return;
 
   const margin = Math.round(height * 0.04);
@@ -1091,7 +1099,10 @@ function drawAnnotations(
   let aboveY = block.top - gap;
   for (const annotation of matches) {
     const style = resolveTextStyle(annotation.style);
-    const fontSize = Math.round(height * (style.fontSize / 1080) * 19.2) || style.fontSize;
+    // `style.fontSize` is specified against the 1080-wide reference frame;
+    // scale it to the frame actually being rendered (1080x1920, 1080x1080, a
+    // preview raster, or the 540px export test canvas).
+    const fontSize = Math.max(8, Math.round((style.fontSize / 1080) * width));
     const wrapped = wrapAnnotationText(ctx, annotation.text, width - margin * 2, style, fontSize);
     const lineHeight = Math.round(fontSize * 1.5);
     const textHeight = wrapped.length * lineHeight;
@@ -1117,6 +1128,17 @@ function drawAnnotations(
       for (const line of wrapped) {
         ctx.fillText(line, width / 2, aboveY);
         aboveY -= lineHeight;
+      }
+    } else if (annotation.placement === 'inline-after') {
+      // The renderer does not flow inline notes into the mushaf line yet;
+      // fall back to below rather than dropping the note silently.
+      if (belowY + textHeight > bottomLimit) {
+        ctx.restore();
+        continue;
+      }
+      for (const line of wrapped) {
+        belowY += lineHeight;
+        ctx.fillText(line, width / 2, belowY);
       }
     } else {
       if (belowY + textHeight > bottomLimit) {
@@ -1334,7 +1356,9 @@ export function renderFrame(canvas: CanvasLike, opts: FrameRenderOptions): void 
     defaultBackground(ctx, tSeconds, width, height);
   }
 
-  if (!captionsOn.uthmani && !captionsOn.translation) {
+  // Annotations are a third content layer: a frame with captions off but
+  // annotations on is still more than a bare background.
+  if (!captionsOn.uthmani && !captionsOn.translation && (opts.annotations?.length ?? 0) === 0) {
     ctx.restore();
     return;
   }
