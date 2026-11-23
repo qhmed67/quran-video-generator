@@ -315,3 +315,28 @@ they are standalone and unused by the app shell.
 
 **Gate.** Green. `npm run check`: 112 unit tests, 4 golden shots unchanged,
 8/8 gate checks, build clean.
+
+## Phase 3 leftovers — validation, persistence, annotations, CI (2026-11-24)
+
+**What changed.**
+
+- `core/validate.ts`: zod schemas for the whole project document. Strict on
+  rules and annotations, so a misspelled style key is rejected, not dropped.
+  `parseProject` returns every issue with its path, for an import dialog.
+- `core/migrations.ts`: versioned migration chain; a newer document is
+  refused with an "update the app" message. A committed fixture pins the
+  unversioned shape.
+- `platform/projectStore.ts`: debounced autosave, load/list/delete, and
+  `.qvg.json` import/export over the existing StoragePort and FilePort.
+  Nothing used those ports before this.
+- `renderFrame` draws ayah-anchored annotations above/below the caption
+  block; crowded notes are skipped rather than covering the mushaf line.
+- `.github/workflows/ci.yml` runs `npm run check` on every PR; the golden
+  runner no longer requires `/usr/bin/google-chrome-stable`.
+
+**Gate.** Green: 145 unit tests, 4 golden shots byte-identical (annotations
+off), 9/9 phase-4 gate checks, build clean.
+
+**Known gap.** Annotations have a renderer but no editor UI yet — the
+Phase 4 AnnotationEditor component is not wired into the app. Word-anchored
+(`inline-after`) annotations are not drawn.
