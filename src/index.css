@@ -2638,3 +2638,14 @@ svg {
     min-height: 44px;
   }
 }
+
+.icon-btn--armed {
+  width: auto;
+  min-width: 52px;
+  padding-inline: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--paper);
+  background: var(--danger);
+  border-color: var(--danger);
+}
