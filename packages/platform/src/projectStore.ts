@@ -15,7 +15,8 @@ import type { Project } from '@qvg/core';
 import { CURRENT_SCHEMA_VERSION, createProject, updateProject } from '@qvg/core';
 import { migrateProject } from '@qvg/core';
 import type { MigrationResult } from '@qvg/core';
-import type { StoragePort, FilePort } from '@qvg/platform';
+import type { FilePort } from './ports/FilePort';
+import type { StoragePort } from './ports/StoragePort';
 
 /** Key prefix for autosaved projects in the `StoragePort`. */
 export const AUTOSAVE_PREFIX = 'qvg:project:';
