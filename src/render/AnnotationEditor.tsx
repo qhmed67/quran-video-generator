@@ -44,6 +44,7 @@ export function AnnotationEditor({
   const [placement, setPlacement] = useState<AnnotationPlacement>('below');
   const [lang, setLang] = useState<string>('en');
   const [style, setStyle] = useState<TextStyle>(DEFAULT_TEXT_STYLE);
+  const [armedDeleteId, setArmedDeleteId] = useState<string | null>(null);
   const textAreaRef = useRef<HTMLTextAreaElement>(null);
   // Monotonic id counter — event-handler side effect, not called during render.
   const idCounter = useRef(0);
@@ -106,7 +107,17 @@ export function AnnotationEditor({
     setStyle(resolveTextStyle(annotation.style));
   };
 
+  // Deleting a note is destructive and has no redo on touch, so the first
+  // tap arms the button and the second tap within a beat confirms.
   const handleDelete = (id: string) => {
+    if (armedDeleteId !== id) {
+      setArmedDeleteId(id);
+      window.setTimeout(() => {
+        setArmedDeleteId((current) => (current === id ? null : current));
+      }, 3000);
+      return;
+    }
+    setArmedDeleteId(null);
     onAnnotationDelete(id);
     if (editingId === id) resetForm();
   };
@@ -186,11 +197,15 @@ export function AnnotationEditor({
                     </button>
                     <button
                       type="button"
-                      className="icon-btn"
+                      className={`icon-btn ${armedDeleteId === ann.id ? 'icon-btn--armed' : ''}`}
                       onClick={() => handleDelete(ann.id)}
-                      aria-label="Delete annotation"
+                      aria-label={
+                        armedDeleteId === ann.id
+                          ? 'Tap again to delete annotation'
+                          : 'Delete annotation'
+                      }
                     >
-                      <CloseIcon size={12} />
+                      {armedDeleteId === ann.id ? 'Delete?' : <CloseIcon size={12} />}
                     </button>
                   </div>
                 </li>

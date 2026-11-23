@@ -340,3 +340,53 @@ off), 9/9 phase-4 gate checks, build clean.
 **Known gap.** Annotations have a renderer but no editor UI yet — the
 Phase 4 AnnotationEditor component is not wired into the app. Word-anchored
 (`inline-after`) annotations are not drawn.
+
+## Interaction leftovers — range handles and safe annotation delete (2026-11-24)
+
+**What changed.**
+
+- `render/rangeHandles.ts`: pure range-handle geometry shared by the overlay
+  painter and the pointer hook. Each handle sits on the outer edge of its own
+  selection end, mapped by reading order so a backwards double-tap still drags
+  the end the user grabbed.
+- Range drag works end to end (plan §3.5b): pressing a handle starts a drag,
+  pointer moves extend that end to the word underneath, and the overlay
+  repaints. Touch drags do not scroll the page. The hit radius is widened so
+  the target stays 44 CSS px on a scaled-down phone preview.
+- Long-press on touch opens a one-word range (plan §3.5b) and the same finger
+  drags its end across words. Both handles are painted even for that one-word
+  range, so it can also be extended after the finger lifts.
+- `touchend` now reads `changedTouches`, so drag cleanup and double-tap no
+  longer depend on a non-empty `touches` list.
+- Range scope check includes the ayah as well as the word, so a range cannot
+  collapse to a single-word scope across two ayahs.
+- Deleting an annotation arms the button on the first tap and confirms on the
+  second within three seconds — no `confirm()` dialog, and no accidental
+  delete on touch.
+- `AnnotationEditor` is wired into the style rail; notes live in autosave and
+  export, and word-anchored notes are drawn under their verse.
+
+**Gate.** Green: 154 unit tests, 4 golden shots byte-identical, 9/9 Phase 4
+gate checks, build clean.
+
+**Known gaps.** Files over the ~300-line guideline (`App.tsx`,
+`renderFrame.ts`) still need splitting. Phase 5 stays blocked on the hardware
+spike.
+
+## Interaction hygiene — pointer hook split (2026-11-24)
+
+**What changed.**
+
+- `usePreviewPointer` is now 310 lines; extraction moved into sibling modules:
+  - `previewPointerHelpers.ts`: `framePoint`, `getPointerPosition`,
+    `isTouchEvent`, `hitTestWord`.
+  - `previewSelection.ts`: `HoverState`, `SelectionState`, `PreviewPointerOptions`.
+  - `usePreviewKeyboard.ts`: keyboard navigation handler (plan §3.5b).
+  - `usePreviewListeners.ts`: canvas DOM subscription.
+- Public imports (`usePreviewPointer` re-exports) unchanged; no call-site changes.
+
+**Gate.** Green: typecheck, lint, format, 154 unit tests, 4 golden shots
+byte-identical, Phase 4 gate 9/9, build clean.
+
+**Known gaps.** No new plan items were implemented here; `renderFrame.ts` (1443
+lines) still awaits splitting after Phase 2's more urgent splits.
