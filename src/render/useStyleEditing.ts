@@ -76,7 +76,12 @@ export function useStyleEditing() {
     if (granularity === 'global') return { kind: 'global' };
     if (!anchor) return null;
     if (granularity === 'ayah') return { kind: 'ayah', surah: anchor.surah, ayah: anchor.ayah };
-    if (range && (range.from.surah !== range.to.surah || range.from.word !== range.to.word)) {
+    if (
+      range &&
+      (range.from.surah !== range.to.surah ||
+        range.from.ayah !== range.to.ayah ||
+        range.from.word !== range.to.word)
+    ) {
       return { kind: 'wordRange', from: range.from, to: range.to };
     }
     return { kind: 'word', ref: anchor };
@@ -141,6 +146,15 @@ export function useStyleEditing() {
     setRange(null);
   }, []);
 
+  // Drag-handle extension (plan 3.5b): move one end of the current range.
+  // A fresh tap sets a plain word selection again.
+  const extendRange = useCallback((ref: WordRef, edge: 'from' | 'to') => {
+    setRange((current) => {
+      if (!current) return null;
+      return edge === 'from' ? { ...current, from: ref } : { ...current, to: ref };
+    });
+  }, []);
+
   const scopeLabel =
     granularity === 'global'
       ? 'Global'
@@ -158,6 +172,7 @@ export function useStyleEditing() {
     setGranularity,
     anchor,
     selectWord,
+    extendRange,
     clearSelection,
     currentStyle,
     inheritedStyle: inherited,

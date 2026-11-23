@@ -20,7 +20,9 @@ import {
   firstWord,
   hitTest as hitTestAt,
   lastWord,
+  sameWordRef,
 } from './layoutIndex';
+import { RANGE_HANDLE_TOUCH_TARGET, hitTestRangeHandle } from './rangeHandles';
 
 export interface HoverState {
   word: WordRef | null;
@@ -38,6 +40,8 @@ export interface PreviewPointerOptions {
   layoutIndex: LayoutIndex | null;
   onHover?: (hover: HoverState) => void;
   onSelect?: (selection: SelectionState) => void;
+  /** Drag-handle extension (plan 3.5b): move one end of the active range. */
+  onExtendRange?: (ref: WordRef, edge: 'from' | 'to') => void;
   onLongPress?: (position: { x: number; y: number }) => void;
   /** Enter key: open the inspector for the current selection. */
   onOpenInspector?: () => void;
@@ -47,7 +51,7 @@ export function usePreviewPointer(
   canvas: HTMLCanvasElement | null,
   options: PreviewPointerOptions,
 ) {
-  const { layoutIndex, onHover, onSelect, onLongPress, onOpenInspector } = options;
+  const { layoutIndex, onHover, onSelect, onLongPress, onOpenInspector, onExtendRange } = options;
 
   // The layout index is rebuilt whenever the visible verse or the frame size
   // changes, and the callbacks are usually fresh closures each render. Binding
@@ -57,8 +61,8 @@ export function usePreviewPointer(
   // the canvas while every handler still reads the current values.
   const layoutIndexRef = useRef<LayoutIndex | null>(layoutIndex);
   layoutIndexRef.current = layoutIndex;
-  const callbacksRef = useRef({ onHover, onSelect, onLongPress, onOpenInspector });
-  callbacksRef.current = { onHover, onSelect, onLongPress, onOpenInspector };
+  const callbacksRef = useRef({ onHover, onSelect, onLongPress, onOpenInspector, onExtendRange });
+  callbacksRef.current = { onHover, onSelect, onLongPress, onOpenInspector, onExtendRange };
 
   const [hover, setHover] = useState<HoverState>({ word: null, position: null });
   const [selection, setSelection] = useState<SelectionState>({
@@ -68,7 +72,26 @@ export function usePreviewPointer(
     current: null,
   });
 
+  // Mirror of `selection` for event handlers and the key handler, so they do
+  // not have to re-bind on every change. Assigned at render time like
+  // `layoutIndexRef`; `applySelection` also writes it immediately so several
+  // pointer events in one frame all see the latest range.
+  const selectionRef = useRef<SelectionState>(selection);
+  selectionRef.current = selection;
+
+  // One applier keeps state, mirror and `onSelect` in sync on every path: tap,
+  // double tap, handle drag and keyboard. A handle drag passes `notify: false`
+  // because it reports through `onExtendRange` and must not re-anchor the
+  // inspector on every pointer move.
+  const applySelection = useCallback((next: SelectionState, notify = true) => {
+    selectionRef.current = next;
+    setSelection(next);
+    if (notify) callbacksRef.current.onSelect?.(next);
+  }, []);
+
   const isLongPressRef = useRef(false);
+  // While set, pointer moves extend that end of the range instead of hovering.
+  const handleDragRef = useRef<'from' | 'to' | null>(null);
   const longPressTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastTapPositionRef = useRef<{ x: number; y: number } | null>(null);
   const lastTapTimeRef = useRef(0);
@@ -79,17 +102,11 @@ export function usePreviewPointer(
       const index = layoutIndexRef.current;
       if (!index || !canvas) return null;
 
-      // Convert client coordinates to *logical frame* coordinates. The layout
-      // index is built in frame space (1080x1920), not in the preview's backing
-      // store, so using the canvas pixel size here would offset every hit by
-      // the preview scale.
-      const rect = canvas.getBoundingClientRect();
-      if (!rect || rect.width === 0 || rect.height === 0) return null;
-
-      const frameX = (x - rect.left) * (index.width / rect.width);
-      const frameY = (y - rect.top) * (index.height / rect.height);
-
-      return hitTestAt(index, { x: frameX, y: frameY });
+      // The layout index is built in *logical frame* coordinates
+      // (1080x1920), not in the preview's backing store, so using the canvas
+      // pixel size here would offset every hit by the preview scale.
+      const frame = framePoint(canvas, index, { x, y });
+      return frame ? hitTestAt(index, frame) : null;
     },
     [canvas],
   );
@@ -102,6 +119,28 @@ export function usePreviewPointer(
       const point = getPointerPosition(e, canvas);
       if (!point) return;
 
+      // While a handle is held, pointer moves extend that end of the range
+      // instead of hovering. Touch must not scroll the page under the stage.
+      const edge = handleDragRef.current;
+      const index = layoutIndexRef.current;
+      if (edge && index) {
+        e.preventDefault();
+        const frame = framePoint(canvas, index, point);
+        const word = frame ? hitTestAt(index, frame) : null;
+        const current = selectionRef.current;
+        const previous = edge === 'from' ? current.start : current.end;
+        if (word && previous && !sameWordRef(previous, word) && current.type === 'range') {
+          applySelection(
+            edge === 'from' ? { ...current, start: word } : { ...current, end: word },
+            false,
+          );
+          callbacksRef.current.onExtendRange?.(word, edge);
+        }
+        setHover({ word: null, position: null });
+        callbacksRef.current.onHover?.({ word: null, position: null });
+        return;
+      }
+
       const word = hitTest(point.x, point.y);
 
       const newHover: HoverState = {
@@ -112,7 +151,7 @@ export function usePreviewPointer(
       setHover(newHover);
       callbacksRef.current.onHover?.(newHover);
     },
-    [canvas, hitTest],
+    [canvas, hitTest, applySelection],
   );
 
   // Handle pointer down (mouse/touch start)
@@ -122,6 +161,30 @@ export function usePreviewPointer(
 
       const point = getPointerPosition(e, canvas);
       if (!point) return;
+
+      // A press anywhere else ends any drag that outlived its pointerup (for
+      // example a mouse released outside the stage).
+      handleDragRef.current = null;
+
+      // Range drag handles take precedence over word selection: pressing one
+      // starts an extension drag instead of resetting the range.
+      const index = layoutIndexRef.current;
+      if (index) {
+        const frame = framePoint(canvas, index, point);
+        // Keep the target 44 CSS px wide even when the preview is scaled down
+        // on a phone, while the painted dot stays small.
+        const rect = canvas.getBoundingClientRect();
+        const hitRadius =
+          rect.width > 0 ? (RANGE_HANDLE_TOUCH_TARGET / 2) * (index.width / rect.width) : undefined;
+        const edge = frame
+          ? hitTestRangeHandle(index, selectionRef.current, frame, hitRadius)
+          : null;
+        if (edge) {
+          e.preventDefault();
+          handleDragRef.current = edge;
+          return;
+        }
+      }
 
       const word = hitTest(point.x, point.y);
 
@@ -150,11 +213,10 @@ export function usePreviewPointer(
           current: word,
         };
 
-        setSelection(newSelection);
-        callbacksRef.current.onSelect?.(newSelection);
+        applySelection(newSelection);
       }
     },
-    [canvas, hitTest],
+    [canvas, hitTest, applySelection],
   );
 
   // Handle pointer up (mouse/touch end)
@@ -162,14 +224,21 @@ export function usePreviewPointer(
     (e: MouseEvent | TouchEvent) => {
       if (!canvas) return;
 
-      const point = getPointerPosition(e, canvas);
-      if (!point) return;
-
       // Clear long press timeout
       if (longPressTimeoutRef.current) {
         clearTimeout(longPressTimeoutRef.current);
         longPressTimeoutRef.current = null;
       }
+
+      // A handle drag ends here; it must not count as the first tap of a
+      // double tap. Touchend has no `touches`, but `changedTouches` still
+      // carries the lift point.
+      const wasDragging = handleDragRef.current !== null;
+      handleDragRef.current = null;
+      if (wasDragging) return;
+
+      const point = getPointerPosition(e, canvas);
+      if (!point) return;
 
       // Handle double tap for range selection
       if (isTouchEvent(e)) {
@@ -191,8 +260,7 @@ export function usePreviewPointer(
                 current: currentWord,
               };
 
-              setSelection(newSelection);
-              callbacksRef.current.onSelect?.(newSelection);
+              applySelection(newSelection);
             }
           }
         }
@@ -201,27 +269,19 @@ export function usePreviewPointer(
         lastTapTimeRef.current = now;
       }
     },
-    [canvas, hitTest],
+    [canvas, hitTest, applySelection],
   );
 
   // Handle pointer leave
   const handlePointerLeave = useCallback(() => {
+    handleDragRef.current = null;
     setHover({ word: null, position: null });
     callbacksRef.current.onHover?.({ word: null, position: null });
   }, []);
 
-  // Mirror of `selection` for the key handler without re-binding on every change.
-  const selectionRef = useRef<SelectionState>(selection);
-  useEffect(() => {
-    selectionRef.current = selection;
-  }, [selection]);
-
-  // Apply a selection: keep state, ref and callback in sync.
-  const applySelection = useCallback((next: SelectionState) => {
-    selectionRef.current = next;
-    setSelection(next);
-    callbacksRef.current.onSelect?.(next);
-  }, []);
+  const clearSelectionState = useCallback(() => {
+    applySelection({ type: 'word', start: null, end: null, current: null });
+  }, [applySelection]);
 
   // Keyboard navigation (plan 3.5b): arrows move the selection word by word
   // / ayah by ayah; Enter opens the inspector. RTL reading order means
@@ -347,21 +407,28 @@ export function usePreviewPointer(
   return {
     hover,
     selection,
-    clearSelection: () => {
-      const cleared: SelectionState = {
-        type: 'word',
-        start: null,
-        end: null,
-        current: null,
-      };
-      selectionRef.current = cleared;
-      setSelection(cleared);
-      callbacksRef.current.onSelect?.(cleared);
-    },
+    clearSelection: clearSelectionState,
   };
 }
 
 // Helper functions
+/**
+ * Convert a client-space point into logical frame space, matching the
+ * coordinate system of the layout index and the range handles.
+ */
+function framePoint(
+  canvas: HTMLCanvasElement,
+  index: LayoutIndex,
+  point: { x: number; y: number },
+): { x: number; y: number } | null {
+  const rect = canvas.getBoundingClientRect();
+  if (!rect || rect.width === 0 || rect.height === 0) return null;
+  return {
+    x: (point.x - rect.left) * (index.width / rect.width),
+    y: (point.y - rect.top) * (index.height / rect.height),
+  };
+}
+
 function getPointerPosition(
   e: MouseEvent | TouchEvent,
   _canvas: HTMLCanvasElement,
@@ -375,6 +442,12 @@ function getPointerPosition(
     return {
       x: e.touches[0].clientX,
       y: e.touches[0].clientY,
+    };
+  } else if (e.changedTouches && e.changedTouches.length > 0) {
+    // touchend/touchcancel carry the lift point only in `changedTouches`.
+    return {
+      x: e.changedTouches[0].clientX,
+      y: e.changedTouches[0].clientY,
     };
   }
 

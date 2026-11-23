@@ -906,6 +906,7 @@ export default function App() {
     layoutIndex,
     onSelect: handleSelect,
     onOpenInspector: () => setInspectorOpen(true),
+    onExtendRange: styleEditing.extendRange,
   });
 
   useUndoShortcuts({

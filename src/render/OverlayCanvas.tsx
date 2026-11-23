@@ -12,6 +12,7 @@
 import { useEffect, useRef } from 'react';
 import type { LayoutIndex } from './layoutIndex';
 import { sameWordRef } from './layoutIndex';
+import { RANGE_HANDLE_RADIUS, rangeHandlePoints, wordBox } from './rangeHandles';
 import type { HoverState, SelectionState } from './usePreviewPointer';
 
 interface OverlayCanvasProps {
@@ -24,35 +25,12 @@ interface OverlayCanvasProps {
   frameHeight: number;
 }
 
-interface Box {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-}
-
-/** Look up a word's painted box in the layout index. */
-function boxOf(
-  layoutIndex: LayoutIndex,
-  ref: { surah: number; ayah: number; word: number },
-): Box | null {
-  for (const verse of layoutIndex.verses) {
-    if (verse.surah !== ref.surah || verse.ayah !== ref.ayah) continue;
-    for (const word of verse.words.words) {
-      if (word.index !== ref.word) continue;
-      // Words are positioned by their baseline, so the box grows upward.
-      return { x: word.x, y: word.y - word.height, width: word.width, height: word.height };
-    }
-  }
-  return null;
-}
-
 /** Every word between two refs in reading order, inclusive. */
 function boxesInRange(
   layoutIndex: LayoutIndex,
   from: { surah: number; ayah: number; word: number },
   to: { surah: number; ayah: number; word: number },
-): Box[] {
+): { x: number; y: number; width: number; height: number }[] {
   const ordered = layoutIndex.verses.flatMap((verse) =>
     verse.words.words.map((word) => ({
       surah: verse.surah,
@@ -94,7 +72,7 @@ function paint(ctx: CanvasRenderingContext2D, props: OverlayCanvasProps): void {
 
   // Hover first so a selected word's outline stays on top.
   if (hover.word) {
-    const box = boxOf(layoutIndex, hover.word);
+    const box = wordBox(layoutIndex, hover.word);
     if (box) {
       ctx.fillStyle = accentSoft;
       // A hint of the words underneath must stay readable: hover is feedback,
@@ -115,7 +93,7 @@ function paint(ctx: CanvasRenderingContext2D, props: OverlayCanvasProps): void {
       selection.type === 'range' && !sameWordRef(start, end)
         ? boxesInRange(layoutIndex, start, end)
         : (() => {
-            const box = boxOf(layoutIndex, start);
+            const box = wordBox(layoutIndex, start);
             return box ? [box] : [];
           })();
 
@@ -130,6 +108,21 @@ function paint(ctx: CanvasRenderingContext2D, props: OverlayCanvasProps): void {
       ctx.lineWidth = 2;
       for (const box of boxes) {
         ctx.strokeRect(box.x + 1, box.y + 1, box.width - 2, box.height - 2);
+      }
+
+      // Drag handles (plan 3.5b): filled dots outside the range ends. Pure
+      // overlay feedback — hit-testing happens in the pointer hook.
+      const handles = rangeHandlePoints(layoutIndex, selection);
+      if (handles) {
+        ctx.fillStyle = accent;
+        for (const edge of ['from', 'to'] as const) {
+          ctx.beginPath();
+          ctx.arc(handles[edge].x, handles[edge].y, RANGE_HANDLE_RADIUS, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.strokeStyle = accentSoft;
+          ctx.lineWidth = 3;
+          ctx.stroke();
+        }
       }
     }
   }
