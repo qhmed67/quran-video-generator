@@ -50,6 +50,7 @@ import { createLayoutIndex } from './render/layoutIndex';
 import type { LayoutIndex } from './render/layoutIndex';
 import { useUndoShortcuts } from './render/undoShortcuts';
 import { useProjectStore } from './projectStore';
+import type { Project } from '@qvg/core';
 
 /* ── Types & constants ── */
 
@@ -437,6 +438,7 @@ export default function App() {
   const [inspectorOpen, setInspectorOpen] = useState(true);
   const rulesRef = useRef(styleEditing.rules);
   rulesRef.current = styleEditing.rules;
+  const annotationsRef = useRef<Project['annotations']>([]);
 
   // Project persistence (plan phase 3.4): the document is derived from the
   // studio's settings and autosaved; import/export go through the file port.
@@ -669,6 +671,7 @@ export default function App() {
     // Per-word rules change the frame; without this the stage would keep
     // showing the previous paint until something else moved.
     JSON.stringify(styleEditing.rules),
+    JSON.stringify(annotationsRef.current),
     previewWidth,
     previewHeight,
   ].join('|');
@@ -741,6 +744,7 @@ export default function App() {
               glowColor: glowColorRef.current,
               textOpacity: textOpacityRef.current,
               rules: rulesRef.current,
+              annotations: annotationsRef.current,
               drawBackground: (c) =>
                 drawBackground(
                   c,
@@ -1227,6 +1231,7 @@ export default function App() {
           // Same rule list as the preview: the gate requires an export to
           // show exactly what the stage showed.
           rules: rulesRef.current,
+          annotations: annotationsRef.current,
           drawBackground: (c) => drawBackground(c, bgPresetRef.current, bgImageRef.current),
         },
         onProgress: (p) => {
