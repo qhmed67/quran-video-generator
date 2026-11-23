@@ -73,12 +73,19 @@ function boxCenter(index: LayoutIndex, word: number): { x: number; y: number } {
 }
 
 describe('rangeHandlePoints', () => {
-  it('returns null for a single-word selection', () => {
+  it('returns null for a plain word selection', () => {
     const index = buildIndex(WORDS);
     expect(
       rangeHandlePoints(index, { type: 'word', start: null, end: null, current: null }),
     ).toBeNull();
-    expect(rangeHandlePoints(index, rangeSelection(0, 0))).toBeNull();
+  });
+
+  it('shows both handles on a one-word range so long-press can extend it', () => {
+    const index = buildIndex(WORDS);
+    const points = rangeHandlePoints(index, rangeSelection(1, 1));
+    expect(points).not.toBeNull();
+    expect(points!.from.x).toBeGreaterThan(boxCenter(index, 1).x);
+    expect(points!.to.x).toBeLessThan(boxCenter(index, 1).x);
   });
 
   it('puts the opening handle at the right edge when the range starts first', () => {

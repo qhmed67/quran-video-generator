@@ -89,9 +89,11 @@ export function usePreviewPointer(
     if (notify) callbacksRef.current.onSelect?.(next);
   }, []);
 
-  const isLongPressRef = useRef(false);
   // While set, pointer moves extend that end of the range instead of hovering.
   const handleDragRef = useRef<'from' | 'to' | null>(null);
+  // Touch long-press opens a one-word range; the same finger then drags its
+  // end across words. Handles take over after the finger lifts.
+  const rangeDragRef = useRef(false);
   const longPressTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastTapPositionRef = useRef<{ x: number; y: number } | null>(null);
   const lastTapTimeRef = useRef(0);
@@ -141,6 +143,27 @@ export function usePreviewPointer(
         return;
       }
 
+      // A long-press range follows the finger: every word it crosses becomes
+      // the new end, and the page must not scroll underneath it.
+      if (rangeDragRef.current && index) {
+        e.preventDefault();
+        const frame = framePoint(canvas, index, point);
+        const word = frame ? hitTestAt(index, frame) : null;
+        const current = selectionRef.current;
+        if (
+          word &&
+          current.type === 'range' &&
+          current.start &&
+          current.end &&
+          !sameWordRef(current.end, word)
+        ) {
+          applySelection({ ...current, end: word });
+        }
+        setHover({ word: null, position: null });
+        callbacksRef.current.onHover?.({ word: null, position: null });
+        return;
+      }
+
       const word = hitTest(point.x, point.y);
 
       const newHover: HoverState = {
@@ -165,6 +188,7 @@ export function usePreviewPointer(
       // A press anywhere else ends any drag that outlived its pointerup (for
       // example a mouse released outside the stage).
       handleDragRef.current = null;
+      rangeDragRef.current = false;
 
       // Range drag handles take precedence over word selection: pressing one
       // starts an extension drag instead of resetting the range.
@@ -190,17 +214,19 @@ export function usePreviewPointer(
 
       // Handle long press for touch
       if (isTouchEvent(e)) {
-        isLongPressRef.current = false;
-
         // Clear any existing timeout
         if (longPressTimeoutRef.current) {
           clearTimeout(longPressTimeoutRef.current);
         }
 
-        // Set long press timeout (500ms)
+        // Long press starts a one-word range (plan §3.5b); dragging the same
+        // finger or a handle then extends it. A press on empty space still
+        // reports the raw position to the consumer.
         longPressTimeoutRef.current = setTimeout(() => {
-          isLongPressRef.current = true;
           callbacksRef.current.onLongPress?.(point);
+          if (!word) return;
+          rangeDragRef.current = true;
+          applySelection({ type: 'range', start: word, end: word, current: word });
         }, 500);
       }
 
@@ -230,12 +256,14 @@ export function usePreviewPointer(
         longPressTimeoutRef.current = null;
       }
 
-      // A handle drag ends here; it must not count as the first tap of a
-      // double tap. Touchend has no `touches`, but `changedTouches` still
-      // carries the lift point.
+      // A handle drag or a long-press range drag ends here; neither counts as
+      // the first tap of a double tap. Touchend has no `touches`, but
+      // `changedTouches` still carries the lift point.
       const wasDragging = handleDragRef.current !== null;
+      const wasRangeDragging = rangeDragRef.current;
       handleDragRef.current = null;
-      if (wasDragging) return;
+      rangeDragRef.current = false;
+      if (wasDragging || wasRangeDragging) return;
 
       const point = getPointerPosition(e, canvas);
       if (!point) return;
@@ -272,9 +300,14 @@ export function usePreviewPointer(
     [canvas, hitTest, applySelection],
   );
 
-  // Handle pointer leave
+  // Handle pointer leave / touch cancel
   const handlePointerLeave = useCallback(() => {
     handleDragRef.current = null;
+    rangeDragRef.current = false;
+    if (longPressTimeoutRef.current) {
+      clearTimeout(longPressTimeoutRef.current);
+      longPressTimeoutRef.current = null;
+    }
     setHover({ word: null, position: null });
     callbacksRef.current.onHover?.({ word: null, position: null });
   }, []);

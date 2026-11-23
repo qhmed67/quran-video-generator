@@ -6,7 +6,6 @@
  */
 
 import type { LayoutIndex } from './layoutIndex';
-import { sameWordRef } from './layoutIndex';
 import type { SelectionState } from './usePreviewPointer';
 
 /** Radius of the painted range handle dot, in logical frame pixels. */
@@ -62,8 +61,8 @@ function readingOrder(
 }
 
 /**
- * Screen positions of the two range drag handles, or null without a
- * multi-word range.
+ * Screen positions of the two range drag handles, or null when the selection
+ * is not a range.
  *
  * Each handle sits outside the outer edge of its own word: the one that
  * opens the range (earlier in reading order) on the right in RTL, the one
@@ -75,12 +74,13 @@ export function rangeHandlePoints(
   selection: SelectionState,
 ): RangeHandles | null {
   if (selection.type !== 'range' || !selection.start || !selection.end) return null;
-  if (sameWordRef(selection.start, selection.end)) return null;
   const fromBox = wordBox(layoutIndex, selection.start);
   const toBox = wordBox(layoutIndex, selection.end);
   if (!fromBox || !toBox) return null;
 
-  const fromOpens = readingOrder(selection.start, selection.end) < 0;
+  // A one-word range (long-press start) still shows both handles, so the user
+  // can drag either one outward without tapping another word first.
+  const fromOpens = readingOrder(selection.start, selection.end) <= 0;
   return {
     from: {
       x: fromOpens

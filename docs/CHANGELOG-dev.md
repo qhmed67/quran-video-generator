@@ -353,6 +353,9 @@ Phase 4 AnnotationEditor component is not wired into the app. Word-anchored
   pointer moves extend that end to the word underneath, and the overlay
   repaints. Touch drags do not scroll the page. The hit radius is widened so
   the target stays 44 CSS px on a scaled-down phone preview.
+- Long-press on touch opens a one-word range (plan §3.5b) and the same finger
+  drags its end across words. Both handles are painted even for that one-word
+  range, so it can also be extended after the finger lifts.
 - `touchend` now reads `changedTouches`, so drag cleanup and double-tap no
   longer depend on a non-empty `touches` list.
 - Range scope check includes the ayah as well as the word, so a range cannot
@@ -363,7 +366,7 @@ Phase 4 AnnotationEditor component is not wired into the app. Word-anchored
 - `AnnotationEditor` is wired into the style rail; notes live in autosave and
   export, and word-anchored notes are drawn under their verse.
 
-**Gate.** Green: 153 unit tests, 4 golden shots byte-identical, 9/9 Phase 4
+**Gate.** Green: 154 unit tests, 4 golden shots byte-identical, 9/9 Phase 4
 gate checks, build clean.
 
 **Known gaps.** Files over the ~300-line guideline (`App.tsx`,
