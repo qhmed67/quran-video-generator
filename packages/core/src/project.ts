@@ -7,6 +7,7 @@
 
 import type { Annotation } from './annotation';
 import type { StyleRule as WordStyleRule } from './style';
+import { CURRENT_SCHEMA_VERSION } from './migrations';
 
 /** Background specification for the video. */
 export interface BackgroundSpec {
@@ -44,9 +45,12 @@ export interface Project {
   annotations: Annotation[];
 }
 
+/** The schema version `createProject` stamps on new documents. */
+export const CURRENT_PROJECT_VERSION = CURRENT_SCHEMA_VERSION;
+
 /** Default project settings. */
 export const DEFAULT_PROJECT: Omit<Project, 'id' | 'name' | 'createdAt' | 'updatedAt'> = {
-  schemaVersion: 1,
+  schemaVersion: CURRENT_SCHEMA_VERSION,
   source: {
     reciterId: 1,
     surah: 1,

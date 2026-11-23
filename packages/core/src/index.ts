@@ -52,8 +52,12 @@ export type {
   TextStyle,
   TextStyleOverrides,
 } from './annotation';
-export { createProject, updateProject, DEFAULT_PROJECT } from './project';
+export { createProject, updateProject, DEFAULT_PROJECT, CURRENT_PROJECT_VERSION } from './project';
 export type { BackgroundSpec, Project } from './project';
+export { CURRENT_SCHEMA_VERSION, migrateProject } from './migrations';
+export type { MigrationResult } from './migrations';
+export { parseProject, projectSchema } from './validate';
+export type { ParseResult, ValidationIssue } from './validate';
 export {
   DEFAULT_HISTORY_LIMIT,
   COALESCE_WINDOW_MS,
