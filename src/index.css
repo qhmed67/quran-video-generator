@@ -768,6 +768,13 @@ svg {
   color: var(--danger);
 }
 
+/* Saved / imported confirmations: ink, not a warning colour. */
+.notice--info {
+  border-color: var(--rule-strong);
+  background: var(--surface-2);
+  color: var(--ink-2);
+}
+
 .notice__text {
   flex: 1;
   min-width: 0;

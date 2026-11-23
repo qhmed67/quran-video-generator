@@ -28,10 +28,13 @@ import type { CropAspect } from './components/CropModal';
 import {
   CloseIcon,
   ExportIcon,
+  FolderIcon,
   ImageIcon,
+  InfoIcon,
   MoonIcon,
   PauseIcon,
   PlayIcon,
+  SaveIcon,
   StopIcon,
   SunIcon,
   WarnIcon,
@@ -46,6 +49,7 @@ import { useStyleEditing } from './render/useStyleEditing';
 import { createLayoutIndex } from './render/layoutIndex';
 import type { LayoutIndex } from './render/layoutIndex';
 import { useUndoShortcuts } from './render/undoShortcuts';
+import { useProjectStore } from './projectStore';
 
 /* ── Types & constants ── */
 
@@ -360,13 +364,13 @@ function Notice({
   children,
   onClose,
 }: {
-  tone: 'warn' | 'danger';
+  tone: 'warn' | 'danger' | 'info';
   children: React.ReactNode;
   onClose?: () => void;
 }) {
   return (
     <div className={`notice notice--${tone}`} role={tone === 'danger' ? 'alert' : 'status'}>
-      <WarnIcon />
+      {tone === 'info' ? <InfoIcon /> : <WarnIcon />}
       <span className="notice__text">{children}</span>
       {onClose && (
         <button
@@ -433,6 +437,21 @@ export default function App() {
   const [inspectorOpen, setInspectorOpen] = useState(true);
   const rulesRef = useRef(styleEditing.rules);
   rulesRef.current = styleEditing.rules;
+
+  // Project persistence (plan phase 3.4): the document is derived from the
+  // studio's settings and autosaved; import/export go through the file port.
+  const projectStore = useProjectStore({
+    snapshot: {
+      reciterId,
+      surah,
+      from,
+      to,
+      aspect,
+      bgId,
+      rules: styleEditing.rules,
+    },
+    revision: surah * 1_000_000 + from * 1_000 + to + styleEditing.rules.length * 10_000_000_000,
+  });
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const ctxRef = useRef<CanvasRenderingContext2D | null>(null);
@@ -1250,6 +1269,13 @@ export default function App() {
     return () => window.clearTimeout(id);
   }, [audioWarning]);
 
+  const dismissMessage = projectStore.dismissMessage;
+  useEffect(() => {
+    if (!projectStore.message) return;
+    const id = window.setTimeout(dismissMessage, 6000);
+    return () => window.clearTimeout(id);
+  }, [projectStore.message, dismissMessage]);
+
   /* ── Derived view data ── */
 
   const currentVerse = useMemo(() => {
@@ -1262,7 +1288,7 @@ export default function App() {
   const rangeLabel = `Surah ${surah} · ayah ${from}–${to}`;
   const frameStyle = { '--ratio': size.width / size.height } as React.CSSProperties;
   const canPlay = Boolean(timeline && timeline.meta.audioUrl) && !isExporting;
-  const noticeStack = error || audioWarning || notice;
+  const noticeStack = error || audioWarning || notice || projectStore.message;
 
   return (
     <div className="app">
@@ -1284,6 +1310,23 @@ export default function App() {
               <span className="measure">{formatSeconds(totalSeconds)}</span>
             </span>
           )}
+          <button
+            type="button"
+            className="icon-btn"
+            onClick={projectStore.exportFile}
+            disabled={!timeline}
+            title="Save the project as a .qvg.json file"
+          >
+            <SaveIcon />
+          </button>
+          <button
+            type="button"
+            className="icon-btn"
+            onClick={projectStore.importFile}
+            title="Open a saved .qvg.json project"
+          >
+            <FolderIcon />
+          </button>
           <button
             type="button"
             className="icon-btn"
@@ -1310,6 +1353,11 @@ export default function App() {
           {notice && (
             <Notice tone="warn" onClose={() => setNotice(null)}>
               {notice}
+            </Notice>
+          )}
+          {projectStore.message && (
+            <Notice tone="info" onClose={projectStore.dismissMessage}>
+              {projectStore.message}
             </Notice>
           )}
         </div>

@@ -104,3 +104,22 @@ export function ExportIcon({ size = 15 }: IconProps) {
     </svg>
   );
 }
+
+/** Save to file: a floppy-free take — arrow into a tray, same family as ExportIcon. */
+export function SaveIcon({ size = 15 }: IconProps) {
+  return (
+    <svg {...svgProps(size)}>
+      <path d="M5 4.5h9.5L19 9v10.5H5z" />
+      <path d="M8 4.5v4h6v-4M8 19.5v-5h8v5" />
+    </svg>
+  );
+}
+
+/** Open from file: a folder outline. */
+export function FolderIcon({ size = 15 }: IconProps) {
+  return (
+    <svg {...svgProps(size)}>
+      <path d="M3.5 6.5a1.5 1.5 0 0 1 1.5-1.5h4l2 2.5h8a1.5 1.5 0 0 1 1.5 1.5v9a1.5 1.5 0 0 1-1.5 1.5H5a1.5 1.5 0 0 1-1.5-1.5z" />
+    </svg>
+  );
+}

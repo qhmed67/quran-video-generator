@@ -33,17 +33,9 @@
     "react/react-in-jsx-scope": "off",
     "react/set-state-in-effect": "off",
     "react/refs": "off",
-    "react/no-array-index-key": "warn",
-    "no-restricted-imports": [
-      "error",
-      {
-        "patterns": [
-          {
-            "regex": "^@qvg/platform"
-          }
-        ]
-      }
-    ]
+    "react/no-array-index-key": "warn"
+    // "apps wire adapters to ports" (ADR-002): app-level sources may import
+    // @qvg/platform. The inner packages get their own overrides below.
   },
   "overrides": [
     {
@@ -118,6 +110,21 @@
             "patterns": [
               {
                 "regex": "^@qvg/platform"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["packages/core/**/*.ts", "packages/render/**/*.ts", "packages/data/**/*.ts"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "regex": "^@qvg/(data|platform|render|ui)"
               }
             ]
           }
