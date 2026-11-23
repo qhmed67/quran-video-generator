@@ -370,5 +370,23 @@ Phase 4 AnnotationEditor component is not wired into the app. Word-anchored
 gate checks, build clean.
 
 **Known gaps.** Files over the ~300-line guideline (`App.tsx`,
-`renderFrame.ts`, `usePreviewPointer.ts`) still need splitting. Phase 5 stays
-blocked on the hardware spike.
+`renderFrame.ts`) still need splitting. Phase 5 stays blocked on the hardware
+spike.
+
+## Interaction hygiene — pointer hook split (2026-11-24)
+
+**What changed.**
+
+- `usePreviewPointer` is now 310 lines; extraction moved into sibling modules:
+  - `previewPointerHelpers.ts`: `framePoint`, `getPointerPosition`,
+    `isTouchEvent`, `hitTestWord`.
+  - `previewSelection.ts`: `HoverState`, `SelectionState`, `PreviewPointerOptions`.
+  - `usePreviewKeyboard.ts`: keyboard navigation handler (plan §3.5b).
+  - `usePreviewListeners.ts`: canvas DOM subscription.
+- Public imports (`usePreviewPointer` re-exports) unchanged; no call-site changes.
+
+**Gate.** Green: typecheck, lint, format, 154 unit tests, 4 golden shots
+byte-identical, Phase 4 gate 9/9, build clean.
+
+**Known gaps.** No new plan items were implemented here; `renderFrame.ts` (1443
+lines) still awaits splitting after Phase 2's more urgent splits.
