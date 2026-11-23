@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { FilePort, Project, StoragePort } from '@qvg/core';
+import type { Project } from '@qvg/core';
 import { createProject } from '@qvg/core';
+import type { FilePort } from './ports/FilePort';
+import type { StoragePort } from './ports/StoragePort';
 import {
   AUTOSAVE_PREFIX,
   createAutosave,
@@ -35,7 +37,7 @@ function memoryStorage(
     async hasItem(k) {
       return map.has(k);
     },
-    async keys(prefix) {
+    async keys(prefix?: string) {
       return [...map.keys()].filter((k) => (prefix ? k.startsWith(prefix) : true));
     },
   };
