@@ -41,8 +41,13 @@ tests/export-loop-results
 
 # Agent / planning files — intentionally not versioned
 AGENTS.md
-docs/plan.md
+agent
 .opencode/
+core/
+.plan/
+
+# Design exploration folders that never ship
+redesign video creator/
 
 # TypeScript build info
 *.tsbuildinfo
