@@ -41,7 +41,6 @@ import {
 } from './components/icons';
 import { applyTheme, flipTheme, readTheme } from './lib/theme';
 import type { Theme } from './lib/theme';
-import { Inspector } from './render/Inspector';
 import { OverlayCanvas } from './render/OverlayCanvas';
 import { usePreviewPointer } from './render/usePreviewPointer';
 import type { SelectionState } from './render/usePreviewPointer';
@@ -50,7 +49,6 @@ import { createLayoutIndex } from './render/layoutIndex';
 import type { LayoutIndex } from './render/layoutIndex';
 import { useUndoShortcuts } from './render/undoShortcuts';
 import { useProjectStore } from './projectStore';
-import { AnnotationEditor } from './render/AnnotationEditor';
 import type { Project } from '@qvg/core';
 
 /* ── Types & constants ── */
@@ -436,42 +434,11 @@ export default function App() {
   // lands on.
   const styleEditing = useStyleEditing();
   const [layoutIndex, setLayoutIndex] = useState<LayoutIndex | null>(null);
-  const [inspectorOpen, setInspectorOpen] = useState(true);
-  const [notesOpen, setNotesOpen] = useState(false);
   const rulesRef = useRef(styleEditing.rules);
   rulesRef.current = styleEditing.rules;
-  const [annotations, setAnnotations] = useState<Project['annotations']>([]);
+  const [annotations] = useState<Project['annotations']>([]);
   const annotationsRef = useRef<Project['annotations']>(annotations);
   annotationsRef.current = annotations;
-  const annotationsPast = useRef<Project['annotations'][]>([]);
-  const annotationsFuture = useRef<Project['annotations'][]>([]);
-
-  const commitAnnotations = useCallback((next: Project['annotations']) => {
-    setAnnotations((current) => {
-      annotationsPast.current = [...annotationsPast.current, current].slice(-100);
-      annotationsFuture.current = [];
-      return next;
-    });
-    bumpRenderRevision();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- stable helper, deps intentionally empty
-  }, []);
-
-  const undoAnnotations = useCallback(() => {
-    setAnnotations((current) => {
-      const previous = annotationsPast.current[annotationsPast.current.length - 1];
-      if (!previous) return current;
-      annotationsPast.current = annotationsPast.current.slice(0, -1);
-      annotationsFuture.current = [current, ...annotationsFuture.current];
-      return previous;
-    });
-  }, []);
-
-  // Annotation and rule edits share one undo history in practice, so a
-  // Ctrl+Z after a note walks both.
-  const undoEither = useCallback(() => {
-    styleEditing.undo();
-    undoAnnotations();
-  }, [styleEditing, undoAnnotations]);
 
   // Project persistence (plan phase 3.4): the document is derived from the
   // studio's settings and autosaved; import/export go through the file port.
@@ -895,9 +862,6 @@ export default function App() {
           ? { from: selection.start, to: selection.end }
           : null;
       styleEditing.selectWord(selection.current, nextRange);
-      // Selecting a word is the moment the inspector becomes useful, so make
-      // sure it is visible on a narrow layout.
-      setInspectorOpen(true);
     },
     [styleEditing],
   );
@@ -905,12 +869,11 @@ export default function App() {
   const { hover, selection } = usePreviewPointer(transformMode ? null : canvasRef.current, {
     layoutIndex,
     onSelect: handleSelect,
-    onOpenInspector: () => setInspectorOpen(true),
     onExtendRange: styleEditing.extendRange,
   });
 
   useUndoShortcuts({
-    undo: undoEither,
+    undo: styleEditing.undo,
     redo: styleEditing.redo,
     enabled: !isExporting,
   });
@@ -1756,41 +1719,6 @@ export default function App() {
             />
           </section>
         </aside>
-
-        {/* Word styling shares the look rail: both edit how the frame paints,
-            and a fourth column would crowd the stage. */}
-        <div className="rail rail--style" aria-label="Word style">
-          <Inspector
-            selection={selection}
-            scopeLabel={styleEditing.scopeLabel}
-            currentStyle={styleEditing.currentStyle}
-            inheritedStyle={styleEditing.inheritedStyle}
-            hasOwnRule={styleEditing.hasOwnRule}
-            onPropertyChange={styleEditing.setProperty}
-            onReset={styleEditing.reset}
-            isOpen={inspectorOpen}
-            onToggle={() => setInspectorOpen((open) => !open)}
-          />
-          <AnnotationEditor
-            selection={
-              selection.current
-                ? {
-                    surah: selection.current.surah,
-                    ayah: selection.current.ayah,
-                    word: selection.type === 'word' ? selection.current.word : undefined,
-                  }
-                : null
-            }
-            annotations={annotations}
-            onAnnotationAdd={(annotation) => commitAnnotations([...annotations, annotation])}
-            onAnnotationUpdate={(id, updates) =>
-              commitAnnotations(annotations.map((a) => (a.id === id ? { ...a, ...updates } : a)))
-            }
-            onAnnotationDelete={(id) => commitAnnotations(annotations.filter((a) => a.id !== id))}
-            isOpen={notesOpen}
-            onToggle={() => setNotesOpen((open) => !open)}
-          />
-        </div>
       </div>
 
       <div className="transport">
